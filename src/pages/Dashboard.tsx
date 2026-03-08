@@ -102,14 +102,14 @@ const Dashboard = () => {
 
       {/* KPIs */}
       <motion.div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" variants={container} initial="hidden" animate="show">
-        <KpiCard title="Total Leads" value={stats?.totalLeads ?? 0} change={12} icon={<Users size={17} />} />
-        <KpiCard title="Avg Response Time" value={stats?.avgResponseTime ?? 0} suffix="min" change={-8} icon={<Clock size={17} />} color="hsl(var(--warning))" />
-        <KpiCard title="Visits Scheduled" value={stats?.visitsScheduled ?? 0} change={15} icon={<CalendarCheck size={17} />} color="hsl(173, 55%, 42%)" />
-        <KpiCard title="Bookings Closed" value={stats?.bookingsClosed ?? 0} change={22} icon={<CheckCircle size={17} />} color="hsl(var(--success))" />
+        <KpiCard title="Total Leads" value={stats?.totalLeads ?? 0} icon={<Users size={17} />} />
+        <KpiCard title="Avg Response Time" value={stats?.avgResponseTime ?? 0} suffix="min" icon={<Clock size={17} />} color="hsl(var(--warning))" />
+        <KpiCard title="Visits Scheduled" value={stats?.visitsScheduled ?? 0} icon={<CalendarCheck size={17} />} color="hsl(173, 55%, 42%)" />
+        <KpiCard title="Bookings Closed" value={stats?.bookingsClosed ?? 0} icon={<CheckCircle size={17} />} color="hsl(var(--success))" />
       </motion.div>
       <motion.div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" variants={container} initial="hidden" animate="show">
-        <KpiCard title="Conversion Rate" value={stats?.conversionRate ?? 0} suffix="%" change={5} icon={<TrendingUp size={17} />} color="hsl(262, 55%, 55%)" />
-        <KpiCard title="SLA Compliance" value={stats?.slaCompliance ?? 0} suffix="%" change={-3} icon={<Timer size={17} />} color="hsl(var(--info))" />
+        <KpiCard title="Conversion Rate" value={stats?.conversionRate ?? 0} suffix="%" icon={<TrendingUp size={17} />} color="hsl(262, 55%, 55%)" />
+        <KpiCard title="SLA Compliance" value={stats?.slaCompliance ?? 0} suffix="%" icon={<Timer size={17} />} color="hsl(var(--info))" />
         <KpiCard title="New Today" value={stats?.newToday ?? 0} icon={<Users size={17} />} color="hsl(var(--destructive))" />
         <KpiCard title="SLA Breaches" value={stats?.slaBreaches ?? 0} icon={<AlertTriangle size={17} />} color="hsl(0, 55%, 50%)" />
       </motion.div>
