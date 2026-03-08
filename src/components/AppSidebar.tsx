@@ -105,26 +105,15 @@ const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => voi
             Settings
           </NavLink>
 
-          <button onClick={signOut} className="sidebar-link w-full mt-0.5 hover:!text-destructive">
-            <LogOut size={17} strokeWidth={1.8} />
-            Sign Out
-          </button>
-
           {/* User info */}
           <div className="mt-4 mx-1 p-3 rounded-xl" style={{ background: 'hsl(var(--sidebar-hover))' }}>
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center">
-                <span className="text-[10px] font-bold text-accent">
-                  {(user?.user_metadata?.full_name || user?.email || 'U').charAt(0).toUpperCase()}
-                </span>
+                <span className="text-[10px] font-bold text-accent">A</span>
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-medium truncate" style={{ color: 'hsl(var(--sidebar-active-fg))' }}>
-                  {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
-                </p>
-                <p className="text-[10px] truncate" style={{ color: 'hsl(var(--sidebar-fg))' }}>
-                  {user?.email || ''}
-                </p>
+                <p className="text-[11px] font-medium truncate" style={{ color: 'hsl(var(--sidebar-active-fg))' }}>Admin</p>
+                <p className="text-[10px] truncate" style={{ color: 'hsl(var(--sidebar-fg))' }}>admin@gharpayy.com</p>
               </div>
             </div>
           </div>

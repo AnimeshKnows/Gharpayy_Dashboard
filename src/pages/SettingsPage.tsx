@@ -13,7 +13,7 @@ import { Plus, Trash2, UserCog, Building2, User, Save } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 const SettingsPage = () => {
-  const { user } = useAuth();
+  const user = { id: 'admin', email: 'admin@gharpayy.com', user_metadata: { full_name: 'Admin' } };
   const { data: agents } = useAgents();
   const { data: properties } = useProperties();
   const qc = useQueryClient();
