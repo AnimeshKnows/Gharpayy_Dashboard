@@ -24,6 +24,7 @@ const supplyItems = [
   { to: '/availability', icon: Map, label: 'Availability' },
   { to: '/effort', icon: TrendingUp, label: 'Effort' },
   { to: '/matching', icon: Sparkles, label: 'Matching' },
+  { to: '/zones', icon: Globe, label: 'Zones' },
 ];
 
 const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) => {
