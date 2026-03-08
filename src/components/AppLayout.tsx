@@ -1,6 +1,7 @@
 import { ReactNode, useState } from 'react';
 import AppSidebar from './AppSidebar';
 import CommandPalette from './CommandPalette';
+import NotificationBell from './NotificationBell';
 import { Menu, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -32,6 +33,7 @@ const AppLayout = ({ children, title, subtitle, actions }: AppLayoutProps) => {
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
             {actions}
+            <NotificationBell />
             <button
               onClick={() => setCmdOpen(true)}
               className="hidden md:flex items-center gap-2 px-3 py-2 text-2xs text-muted-foreground bg-secondary rounded-xl hover:bg-muted transition-colors"
