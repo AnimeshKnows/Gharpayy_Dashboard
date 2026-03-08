@@ -14,6 +14,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const QuickAddLead = () => {
   const [open, setOpen] = useState(false);
+
+  // Listen for command palette trigger
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener('open-quick-add', handler);
+    return () => window.removeEventListener('open-quick-add', handler);
+  }, []);
   const [expanded, setExpanded] = useState(false);
   const [form, setForm] = useState({
     name: '', phone: '', email: '', source: 'whatsapp' as string,
