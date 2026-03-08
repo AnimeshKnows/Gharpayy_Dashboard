@@ -35,12 +35,13 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           {/* Public customer-facing routes */}
+          <Route path="/" element={<LandingPage />} />
           <Route path="/explore" element={<Explore />} />
           <Route path="/property/:propertyId" element={<PropertyDetail />} />
           <Route path="/capture" element={<LeadCapture />} />
 
           {/* Internal CRM routes */}
-          <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
           <Route path="/pipeline" element={<ProtectedRoute><Pipeline /></ProtectedRoute>} />
           <Route path="/visits" element={<ProtectedRoute><Visits /></ProtectedRoute>} />
