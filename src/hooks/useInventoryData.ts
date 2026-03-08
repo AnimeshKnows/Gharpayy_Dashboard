@@ -104,7 +104,7 @@ export function useConfirmRoomStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (entry: { room_id: string; status: string; confirmed_by?: string | null; notes?: string | null; rent_updated?: boolean }) => {
-      const { data, error } = await supabase.from('room_status_log').insert(entry).select().single();
+      const { data, error } = await supabase.from('room_status_log').insert(entry as any).select().single();
       if (error) throw error;
       return data;
     },
