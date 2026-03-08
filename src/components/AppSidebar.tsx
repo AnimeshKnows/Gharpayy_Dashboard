@@ -13,6 +13,7 @@ const salesItems = [
   { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
   { to: '/visits', icon: CalendarCheck, label: 'Visits' },
   { to: '/conversations', icon: MessageSquare, label: 'Messages' },
+  { to: '/bookings', icon: Receipt, label: 'Bookings' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/historical', icon: History, label: 'Historical' },
 ];
