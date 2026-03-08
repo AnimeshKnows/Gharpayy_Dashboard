@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
+import AddLeadDialog from '@/components/AddLeadDialog';
 import { useLeads } from '@/hooks/useCrmData';
 import { PIPELINE_STAGES, SOURCE_LABELS } from '@/types/crm';
-import { Filter, Download, Plus } from 'lucide-react';
+import { Filter, Download } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const statusBadge = (status: string) => {
@@ -26,6 +27,19 @@ const Leads = () => {
     return true;
   });
 
+  const handleExport = () => {
+    const csv = [
+      ['Name', 'Phone', 'Email', 'Source', 'Status', 'Agent', 'Location', 'Budget'].join(','),
+      ...filtered.map(l => [l.name, l.phone, l.email || '', l.source, l.status, l.agents?.name || '', l.preferred_location || '', l.budget || ''].join(','))
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'leads-export.csv';
+    a.click();
+  };
+
   if (isLoading) {
     return (
       <AppLayout title="All Leads" subtitle="Loading...">
@@ -35,7 +49,7 @@ const Leads = () => {
   }
 
   return (
-    <AppLayout title="All Leads" subtitle={`${filtered.length} leads found`}>
+    <AppLayout title="All Leads" subtitle={`${filtered.length} leads found`} actions={<AddLeadDialog />}>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="flex items-center gap-2">
           <Filter size={14} className="text-muted-foreground" />
@@ -50,12 +64,9 @@ const Leads = () => {
             {PIPELINE_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
           </select>
         </div>
-        <div className="ml-auto flex gap-2">
-          <button className="flex items-center gap-1.5 text-xs bg-secondary text-secondary-foreground px-3 py-2 rounded-lg hover:bg-muted transition-colors">
+        <div className="ml-auto">
+          <button onClick={handleExport} className="flex items-center gap-1.5 text-xs bg-secondary text-secondary-foreground px-3 py-2 rounded-lg hover:bg-muted transition-colors">
             <Download size={13} /> Export
-          </button>
-          <button className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-2 rounded-lg hover:opacity-90 transition-opacity">
-            <Plus size={13} /> Add Lead
           </button>
         </div>
       </div>
