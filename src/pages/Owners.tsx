@@ -45,10 +45,7 @@ const Owners = () => {
     <AppLayout title="Owners" subtitle="Manage property owners and their portfolios">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-display font-bold">Owners</h1>
-            <p className="text-sm text-muted-foreground">Manage property owners and their portfolios</p>
-          </div>
+          <div />
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1.5"><Plus size={14} /> Add Owner</Button>

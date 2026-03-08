@@ -55,10 +55,6 @@ const EffortDashboard = () => {
   return (
     <AppLayout title="Effort Visibility" subtitle="Transparent effort metrics per property">
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-display font-bold">Effort Visibility</h1>
-          <p className="text-sm text-muted-foreground">Owner sees transparent effort. Team sees leakage points.</p>
-        </div>
 
         {propsLoading ? (
           <div className="text-sm text-muted-foreground">Loading...</div>

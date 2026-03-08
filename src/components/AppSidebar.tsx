@@ -81,7 +81,24 @@ const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => voi
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          <p className="px-3 mb-1 text-[9px] font-semibold uppercase tracking-widest" style={{ color: 'hsl(var(--sidebar-fg))' }}>Sales</p>
           {navItems.map((item) => {
+            const isActive = location.pathname === item.to;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={onClose}
+                className={`sidebar-link ${isActive ? 'active' : ''}`}
+              >
+                <item.icon size={17} strokeWidth={isActive ? 2.2 : 1.8} />
+                {item.label}
+              </NavLink>
+            );
+          })}
+          <div className="my-3 mx-2 border-t" style={{ borderColor: 'hsl(var(--sidebar-border))' }} />
+          <p className="px-3 mb-1 text-[9px] font-semibold uppercase tracking-widest" style={{ color: 'hsl(var(--sidebar-fg))' }}>Inventory</p>
+          {inventoryItems.map((item) => {
             const isActive = location.pathname === item.to;
             return (
               <NavLink

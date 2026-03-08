@@ -91,10 +91,7 @@ const Inventory = () => {
     <AppLayout title="Room Inventory" subtitle="Real-time room availability">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-display font-bold">Room Inventory</h1>
-            <p className="text-sm text-muted-foreground">Real-time room availability — the single source of truth</p>
-          </div>
+          <div />
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1.5"><Plus size={14} /> Add Room</Button>
