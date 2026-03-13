@@ -21,7 +21,7 @@ Operational CRM and property management dashboard built with Next.js App Router.
 npm install
 ```
 
-2. Create `.env.local`:
+2. Create `.env`:
 ```env
 MONGODB_URI=mongodb://localhost:27017/dashboard
 JWT_SECRET=replace_with_a_strong_secret
