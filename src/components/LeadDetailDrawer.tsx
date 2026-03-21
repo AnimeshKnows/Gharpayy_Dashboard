@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,8 +10,9 @@ import { useUpdateLead, useAgents, type LeadWithRelations } from '@/hooks/useCrm
 import { useConversations, useFollowUps, useCreateFollowUp } from '@/hooks/useLeadDetails';
 import { useActivityLog } from '@/hooks/useActivityLog';
 import { useBookingsByLead } from '@/hooks/useBookings';
+import { useAuth } from '@/contexts/AuthContext';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Phone, Mail, MapPin, IndianRupee, Clock, MessageCircle, CalendarCheck, User, Star, Send, Bell, ArrowRightLeft, Eye, Activity, Sparkles, Loader2, Receipt } from 'lucide-react';
+import { Phone, Mail, MapPin, IndianRupee, Clock, MessageCircle, CalendarCheck, User, Star, Send, Bell, ArrowRightLeft, Eye, Activity, Sparkles, Loader2, Receipt, CalendarDays, Briefcase, Home, Users, StickyNote } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Props {
@@ -36,6 +37,8 @@ const ACTION_ICONS: Record<string, typeof Activity> = {
 const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
   const updateLead = useUpdateLead();
   const { data: agents } = useAgents();
+  const { user } = useAuth();
+  const canAssignLead = ['ceo', 'manager', 'admin'].includes(user?.role || '');
   const { data: conversations } = useConversations(lead?.id);
   const { data: followUps } = useFollowUps(lead?.id);
   const { data: activityLog } = useActivityLog(lead?.id);
@@ -45,6 +48,13 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
   const [reminderDate, setReminderDate] = useState('');
   const [aiSummary, setAiSummary] = useState<any>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('');
+
+  useEffect(() => {
+    setSelectedAgentId(lead?.assignedAgentId || '');
+    setSelectedStatus(lead?.status || '');
+  }, [lead?.id, lead?.assignedAgentId, lead?.status]);
 
   const handleAiSummary = async () => {
     if (!lead) return;
@@ -76,17 +86,33 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
   const stage = PIPELINE_STAGES.find(s => s.key === lead.status);
   const score = lead.leadScore ?? 0;
 
-  const handleStatusChange = async (status: string) => {
-    try {
-      await updateLead.mutateAsync({ id: lead.id, status: status as any });
-      toast.success(`Status updated to ${PIPELINE_STAGES.find(s => s.key === status)?.label}`);
-    } catch (err: any) { toast.error(err.message); }
+  const handleStatusChange = (status: string) => {
+    setSelectedStatus(status);
   };
 
-  const handleAgentChange = async (agentId: string) => {
+  const handleAgentChange = (agentId: string) => {
+    setSelectedAgentId(agentId);
+  };
+
+  const handleSaveAgentChange = async () => {
+    const updates: any = { id: lead.id };
+    let hasChanges = false;
+
+    if (selectedStatus && selectedStatus !== lead.status) {
+      updates.status = selectedStatus;
+      hasChanges = true;
+    }
+
+    if (canAssignLead && selectedAgentId !== lead.assignedAgentId) {
+      updates.assignedAgentId = selectedAgentId || null;
+      hasChanges = true;
+    }
+
+    if (!hasChanges) return;
+
     try {
-      await updateLead.mutateAsync({ id: lead.id, assignedAgentId: agentId });
-      toast.success('Agent reassigned');
+      await updateLead.mutateAsync(updates);
+      toast.success('Lead updated');
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -117,85 +143,106 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="w-full sm:max-w-[520px] overflow-y-auto p-0">
+      <SheetContent className="w-full sm:max-w-[540px] overflow-y-auto p-0">
 
-        <div className="p-6 border-b border-border">
+        <div className="p-5 sm:p-6 border-b border-border bg-gradient-to-b from-secondary/20 to-background space-y-4">
           <SheetHeader>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <SheetTitle className="font-display text-lg">{lead.name}</SheetTitle>
-                <div className="flex items-center gap-2 mt-1">
+                <SheetTitle className="font-display text-xl leading-tight">{lead.name}</SheetTitle>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <span className={`badge-pipeline text-[10px] text-primary-foreground ${stage?.color}`}>
                     {stage?.label}
                   </span>
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColor(score)}`}>
                     <Star size={10} /> {score}/100
                   </span>
+                  {lead.isDuplicate ? (
+                    <span className="text-[9px] px-2 py-0.5 rounded-full border border-border text-muted-foreground">
+                      Duplicate Phone
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>
           </SheetHeader>
 
-          {/* Contact info */}
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Phone size={12} /> {lead.phone}
-            </div>
-            {lead.email && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Mail size={12} /> {lead.email}
-              </div>
-            )}
-            {lead.preferredLocation && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <MapPin size={12} /> {lead.preferredLocation}
-              </div>
-            )}
-            {lead.budget && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <IndianRupee size={12} /> {lead.budget}
-              </div>
-            )}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Clock size={12} /> {(lead as any).firstResponseTimeMin != null ? `${(lead as any).firstResponseTimeMin}m response` : 'No response yet'}
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <User size={12} /> {(lead as any).agents?.name || 'Unassigned'}
+          <div className="rounded-2xl border border-border bg-card/70 p-4">
+            <p className="text-[10px] font-semibold tracking-wide text-muted-foreground mb-3">LEAD PROFILE</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex items-center gap-2 text-xs text-foreground"><Phone size={12} className="text-muted-foreground" /> {lead.phone}</div>
+              {lead.email ? <div className="flex items-center gap-2 text-xs text-foreground"><Mail size={12} className="text-muted-foreground" /> {lead.email}</div> : null}
+              {lead.preferredLocation ? <div className="flex items-center gap-2 text-xs text-foreground"><MapPin size={12} className="text-muted-foreground" /> {lead.preferredLocation}</div> : null}
+              {lead.budget ? <div className="flex items-center gap-2 text-xs text-foreground"><IndianRupee size={12} className="text-muted-foreground" /> {lead.budget}</div> : null}
+              {lead.moveInDate ? <div className="flex items-center gap-2 text-xs text-foreground"><CalendarDays size={12} className="text-muted-foreground" /> Move-in: {lead.moveInDate}</div> : null}
+              {lead.profession ? <div className="flex items-center gap-2 text-xs text-foreground"><Briefcase size={12} className="text-muted-foreground" /> {lead.profession}</div> : null}
+              {lead.roomType ? <div className="flex items-center gap-2 text-xs text-foreground"><Home size={12} className="text-muted-foreground" /> Room: {lead.roomType}</div> : null}
+              {lead.needPreference ? <div className="flex items-center gap-2 text-xs text-foreground"><Users size={12} className="text-muted-foreground" /> Need: {lead.needPreference}</div> : null}
+              <div className="flex items-center gap-2 text-xs text-foreground"><Clock size={12} className="text-muted-foreground" /> {(lead as any).firstResponseTimeMin != null ? `${(lead as any).firstResponseTimeMin}m response` : 'No response yet'}</div>
+              <div className="flex items-center gap-2 text-xs text-foreground"><User size={12} className="text-muted-foreground" /> {(lead as any).agents?.name || 'Unassigned'}</div>
+              {lead.specialRequests ? (
+                <div className="sm:col-span-2 rounded-lg bg-secondary/60 px-3 py-2 text-xs text-foreground flex items-start gap-2">
+                  <StickyNote size={12} className="text-muted-foreground mt-0.5" />
+                  <span><span className="font-medium">Special requests:</span> {lead.specialRequests}</span>
+                </div>
+              ) : null}
+              {lead.notes ? (
+                <div className="sm:col-span-2 rounded-lg bg-secondary/60 px-3 py-2 text-xs text-foreground flex items-start gap-2">
+                  <StickyNote size={12} className="text-muted-foreground mt-0.5" />
+                  <span><span className="font-medium">Notes:</span> {lead.notes}</span>
+                </div>
+              ) : null}
             </div>
           </div>
 
-          {/* Quick actions */}
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <div>
-              <label className="text-[10px] text-muted-foreground mb-1 block">Change Status</label>
-              <Select value={lead.status} onValueChange={handleStatusChange}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-xl border border-border bg-card p-3">
+              <label className="text-[10px] font-medium text-muted-foreground mb-1.5 block">Change Status</label>
+              <Select value={selectedStatus || lead.status} onValueChange={handleStatusChange}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {PIPELINE_STAGES.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <label className="text-[10px] text-muted-foreground mb-1 block">Assign Agent</label>
-              <Select value={lead.assignedAgentId || ''} onValueChange={handleAgentChange}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>
-                  {agents?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
 
+            {canAssignLead ? (
+              <div className="rounded-xl border border-border bg-card p-3">
+                <label className="text-[10px] font-medium text-muted-foreground mb-1.5 block">Assign Agent</label>
+                <div className="flex items-center gap-2">
+                  <Select value={selectedAgentId || ''} onValueChange={handleAgentChange}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      {agents?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ) : null}
           </div>
 
-          {/* AI Summary */}
-          <div className="mt-4">
-            {!aiSummary && (
+          <Button
+            size="sm"
+            className="w-full h-9 text-xs"
+            onClick={handleSaveAgentChange}
+            disabled={
+              updateLead.isPending ||
+              (
+                (selectedStatus || lead.status) === lead.status &&
+                (!canAssignLead || selectedAgentId === lead.assignedAgentId)
+              )
+            }
+          >
+            {updateLead.isPending ? 'Saving...' : 'Save'}
+          </Button>
+
+          <div className="space-y-3">
+            {!aiSummary ? (
               <Button variant="outline" size="sm" className="w-full gap-2 text-xs rounded-xl" onClick={handleAiSummary} disabled={aiLoading}>
                 {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                 {aiLoading ? 'Analyzing with AI...' : 'AI Lead Analysis'}
               </Button>
-            )}
-            {aiSummary && (
+            ) : (
               <div className="p-3 rounded-xl bg-accent/5 border border-accent/20 space-y-2">
                 <div className="flex items-center gap-2">
                   <Sparkles size={12} className="text-accent" />
@@ -212,30 +259,29 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Bookings */}
-          {bookings && bookings.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1"><Receipt size={10} /> BOOKINGS</p>
-              {bookings.map((b: any) => (
-                <div key={b.id} className="flex items-center justify-between p-2.5 rounded-xl bg-secondary/50 text-xs">
-                  <div>
-                    <p className="font-medium text-foreground">{b.properties?.name || 'TBD'}</p>
-                    <p className="text-[10px] text-muted-foreground">{b.rooms?.room_number}{b.beds?.bed_number ? ` / ${b.beds.bed_number}` : ''}</p>
+            {bookings && bookings.length > 0 ? (
+              <div className="rounded-xl border border-border bg-card/70 p-3 space-y-2">
+                <p className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1"><Receipt size={10} /> BOOKINGS</p>
+                {bookings.map((b: any) => (
+                  <div key={b.id} className="flex items-center justify-between p-2.5 rounded-xl bg-secondary/50 text-xs">
+                    <div>
+                      <p className="font-medium text-foreground">{b.properties?.name || 'TBD'}</p>
+                      <p className="text-[10px] text-muted-foreground">{b.rooms?.room_number}{b.beds?.bed_number ? ` / ${b.beds.bed_number}` : ''}</p>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant="outline" className="text-[9px]">{b.booking_status}</Badge>
+                      {b.monthly_rent && <p className="text-[10px] text-foreground mt-0.5">₹{Number(b.monthly_rent).toLocaleString()}</p>}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <Badge variant="outline" className="text-[9px]">{b.booking_status}</Badge>
-                    {b.monthly_rent && <p className="text-[10px] text-foreground mt-0.5">₹{Number(b.monthly_rent).toLocaleString()}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="timeline" className="p-6">
+        <Tabs defaultValue="timeline" className="p-5 sm:p-6">
           <TabsList className="w-full grid grid-cols-3">
             <TabsTrigger value="timeline" className="text-xs">Activity</TabsTrigger>
             <TabsTrigger value="conversations" className="text-xs">Messages</TabsTrigger>

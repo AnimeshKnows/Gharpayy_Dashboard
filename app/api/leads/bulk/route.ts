@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import Lead from '@/models/Lead';
+import User from '@/models/User';
+import { getAuthUserFromCookie } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
+    const authUser = await getAuthUserFromCookie();
+    if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!['ceo', 'manager', 'admin'].includes(authUser.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { leads } = await req.json();
     if (!Array.isArray(leads)) return NextResponse.json({ error: 'Leads array required' }, { status: 400 });
 
@@ -26,6 +34,12 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
+    const authUser = await getAuthUserFromCookie();
+    if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!['ceo', 'manager', 'admin'].includes(authUser.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { ids, updates } = await req.json();
     if (!Array.isArray(ids)) return NextResponse.json({ error: 'IDs array required' }, { status: 400 });
 
@@ -35,6 +49,20 @@ export async function PATCH(req: Request) {
     const mappedUpdates: any = { ...updates };
     if (updates.assigned_agent_id) mappedUpdates.assignedAgentId = updates.assigned_agent_id;
     if (updates.preferred_location) mappedUpdates.preferredLocation = updates.preferred_location;
+
+    // Assignment permission checks
+    if (mappedUpdates.assignedAgentId !== undefined) {
+      const agent = await User.findOne({ _id: mappedUpdates.assignedAgentId, role: 'agent' }).select('_id adminId');
+      if (!agent) {
+        return NextResponse.json({ error: 'Selected agent not found' }, { status: 400 });
+      }
+      if (authUser.role === 'admin' && String(agent.adminId || '') !== String(authUser.id)) {
+        return NextResponse.json(
+          { error: 'Admins can assign leads only to agents under them' },
+          { status: 403 }
+        );
+      }
+    }
 
     const result = await Lead.updateMany(
       { _id: { $in: ids } },
@@ -48,6 +76,12 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const authUser = await getAuthUserFromCookie();
+    if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!['ceo', 'manager', 'admin'].includes(authUser.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const idsString = searchParams.get('ids');
     let ids: string[] = [];

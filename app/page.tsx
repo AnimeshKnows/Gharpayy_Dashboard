@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { usePublicProperties } from '@/hooks/usePublicData';
+import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 
@@ -29,6 +30,7 @@ const STATS = [
 export default function LandingPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
+  const { user } = useAuth();
   const { data: featured } = usePublicProperties({ city: 'Bangalore', limit: 6 });
 
   const getAvailableBeds = (property: any) => {
@@ -69,7 +71,9 @@ export default function LandingPage() {
               <button onClick={() => router.push('/explore')} className="hover:text-foreground transition-colors">About</button>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" onClick={() => router.push('/auth')}>Login</Button>
+              <Button variant="ghost" size="sm" onClick={() => router.push(user ? '/dashboard' : '/auth')}>
+                {user ? 'Dashboard' : 'Login'}
+              </Button>
               <Button size="sm" className="bg-accent hover:bg-accent/90 text-accent-foreground" onClick={() => router.push('/explore')}>
                 Find a PG
               </Button>

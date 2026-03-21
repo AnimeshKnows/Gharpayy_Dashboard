@@ -1,21 +1,34 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import AppSidebar from './AppSidebar';
 import CommandPalette from './CommandPalette';
 import NotificationBell from './NotificationBell';
 import QuickAddLead from './QuickAddLead';
 import { Menu, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface AppLayoutProps {
   children: ReactNode;
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  showQuickAddLead?: boolean;
 }
 
-const AppLayout = ({ children, title, subtitle, actions }: AppLayoutProps) => {
+const AppLayout = ({ children, title, subtitle, actions, showQuickAddLead = true }: AppLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      window.location.href = '/auth';
+    }
+  }, [loading, user]);
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -34,6 +47,15 @@ const AppLayout = ({ children, title, subtitle, actions }: AppLayoutProps) => {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {actions}
+            {user && (
+              <div className="hidden xl:flex items-center gap-2 rounded-lg border border-border/70 bg-secondary/50 px-2.5 py-1">
+                <span className="text-[11px] font-medium text-foreground">{user.fullName}</span>
+                <span className="text-[10px] text-muted-foreground uppercase">{user.role}</span>
+                {user.zoneName && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">{user.zoneName}</span>
+                )}
+              </div>
+            )}
             <NotificationBell />
             <button
               onClick={() => setCmdOpen(true)}
@@ -61,7 +83,7 @@ const AppLayout = ({ children, title, subtitle, actions }: AppLayoutProps) => {
       </div>
 
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
-      <QuickAddLead />
+      {showQuickAddLead && <QuickAddLead />}
     </div>
   );
 };

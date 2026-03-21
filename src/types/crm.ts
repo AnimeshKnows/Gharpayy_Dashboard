@@ -11,6 +11,11 @@ export interface Lead {
   firstResponseTime?: number; // in minutes
   budget?: string;
   preferredLocation?: string;
+  moveInDate?: string;
+  profession?: string;
+  roomType?: string;
+  needPreference?: string;
+  specialRequests?: string;
   notes?: string;
   nextFollowUp?: string;
   visitDate?: string;

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Loader2, AlertTriangle, Phone, Mail, MapPin, IndianRupee, User, StickyNote, Sparkles, PenLine } from 'lucide-react';
+import { Plus, Loader2, Phone, Mail, MapPin, IndianRupee, User, StickyNote, Sparkles, PenLine, CalendarDays, Briefcase, Home, Users } from 'lucide-react';
 import { useCreateLead, useAgents } from '@/hooks/useCrmData';
 import { SOURCE_LABELS } from '@/types/crm';
 import { toast } from 'sonner';
@@ -28,15 +28,21 @@ const QuickAddLead = () => {
 
   const [form, setForm] = useState({
     name: '', phone: '', email: '', source: 'whatsapp' as string,
-    budget: '', preferred_location: '', notes: '', assigned_agent_id: '',
+    budget: '', preferred_location: '', move_in_date: '', profession: '',
+    room_type: '', need_preference: '', special_requests: '',
+    notes: '', assigned_agent_id: '',
   });
-  const [duplicate, setDuplicate] = useState<{ id: string; name: string; status: string } | null>(null);
+  const [duplicate, setDuplicate] = useState<{ isDuplicate: boolean; duplicateCount: number; id: string; name: string; status: string } | null>(null);
 
   const createLead = useCreateLead();
   const { data: agents } = useAgents();
 
   const reset = () => {
-    setForm({ name: '', phone: '', email: '', source: 'whatsapp', budget: '', preferred_location: '', notes: '', assigned_agent_id: '' });
+    setForm({
+      name: '', phone: '', email: '', source: 'whatsapp', budget: '', preferred_location: '',
+      move_in_date: '', profession: '', room_type: '', need_preference: '', special_requests: '',
+      notes: '', assigned_agent_id: ''
+    });
     setDuplicate(null);
     setRawText('');
     setParsed(null);
@@ -48,7 +54,7 @@ const QuickAddLead = () => {
     try {
       const res = await fetch(`/api/leads/check-duplicate?phone=${phone}`);
       const data = await res.json();
-      if (data) setDuplicate(data);
+      if (data?.isDuplicate) setDuplicate(data);
       else setDuplicate(null);
     } catch (e) {
       setDuplicate(null);
@@ -68,6 +74,11 @@ const QuickAddLead = () => {
       email: result.email || f.email,
       budget: result.budget || f.budget,
       preferred_location: result.preferred_location || f.preferred_location,
+      move_in_date: result.move_in_date || f.move_in_date,
+      profession: result.profession || f.profession,
+      room_type: result.room_type || f.room_type,
+      need_preference: result.need_preference || f.need_preference,
+      special_requests: result.special_requests || f.special_requests,
       notes: result.notes || f.notes,
     }));
     if (result.phone) checkDuplicate(result.phone);
@@ -96,6 +107,11 @@ const QuickAddLead = () => {
         source: form.source as any,
         budget: (mode === 'smart' ? (parsed?.budget || form.budget) : form.budget).trim() || null,
         preferredLocation: (mode === 'smart' ? (parsed?.preferred_location || form.preferred_location) : form.preferred_location).trim() || null,
+        moveInDate: (mode === 'smart' ? (parsed?.move_in_date || form.move_in_date) : form.move_in_date).trim() || null,
+        profession: (mode === 'smart' ? (parsed?.profession || form.profession) : form.profession).trim() || null,
+        roomType: (mode === 'smart' ? (parsed?.room_type || form.room_type) : form.room_type).trim() || null,
+        needPreference: (mode === 'smart' ? (parsed?.need_preference || form.need_preference) : form.need_preference).trim() || null,
+        specialRequests: (mode === 'smart' ? (parsed?.special_requests || form.special_requests) : form.special_requests).trim() || null,
         notes: (mode === 'smart' ? (parsed?.notes || form.notes) : form.notes).trim() || null,
         assignedAgentId: getAutoAgent(),
         status: 'new',
@@ -115,6 +131,11 @@ const QuickAddLead = () => {
     { icon: Mail, label: 'Email', value: parsed.email, conf: parsed.confidence.email, color: 'text-sky-500' },
     { icon: IndianRupee, label: 'Budget', value: parsed.budget, conf: parsed.confidence.budget, color: 'text-amber-500' },
     { icon: MapPin, label: 'Location', value: parsed.preferred_location, conf: parsed.confidence.location, color: 'text-rose-500' },
+    { icon: CalendarDays, label: 'Move-in', value: parsed.move_in_date, conf: 0.7, color: 'text-indigo-500' },
+    { icon: Briefcase, label: 'Profile', value: parsed.profession, conf: 0.7, color: 'text-cyan-500' },
+    { icon: Home, label: 'Room', value: parsed.room_type, conf: 0.7, color: 'text-orange-500' },
+    { icon: Users, label: 'Need', value: parsed.need_preference, conf: 0.7, color: 'text-lime-600' },
+    { icon: StickyNote, label: 'Special', value: parsed.special_requests, conf: 0.7, color: 'text-fuchsia-500' },
     { icon: StickyNote, label: 'Notes', value: parsed.notes, conf: 0.5, color: 'text-muted-foreground' },
   ].filter(f => f.value) : [];
 
@@ -253,6 +274,66 @@ const QuickAddLead = () => {
                       </Select>
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Move-in Date</Label>
+                      <Input
+                        value={form.move_in_date}
+                        onChange={e => setForm(f => ({ ...f, move_in_date: e.target.value }))}
+                        className="h-10 rounded-xl"
+                        placeholder="1st July / next month"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Student/Working</Label>
+                      <Select value={form.profession || 'unknown'} onValueChange={v => setForm(f => ({ ...f, profession: v === 'unknown' ? '' : v }))}>
+                        <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unknown">Not specified</SelectItem>
+                          <SelectItem value="student">Student</SelectItem>
+                          <SelectItem value="working">Working</SelectItem>
+                          <SelectItem value="intern">Intern</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Room Preference</Label>
+                      <Select value={form.room_type || 'unknown'} onValueChange={v => setForm(f => ({ ...f, room_type: v === 'unknown' ? '' : v }))}>
+                        <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unknown">Not specified</SelectItem>
+                          <SelectItem value="private">Private</SelectItem>
+                          <SelectItem value="shared">Shared</SelectItem>
+                          <SelectItem value="both">Both</SelectItem>
+                          <SelectItem value="any">Any</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Need (Boys/Girls/Coed)</Label>
+                      <Select value={form.need_preference || 'unknown'} onValueChange={v => setForm(f => ({ ...f, need_preference: v === 'unknown' ? '' : v }))}>
+                        <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unknown">Not specified</SelectItem>
+                          <SelectItem value="boys">Boys</SelectItem>
+                          <SelectItem value="girls">Girls</SelectItem>
+                          <SelectItem value="coed">Coed</SelectItem>
+                          <SelectItem value="boys/coed">Boys/Coed</SelectItem>
+                          <SelectItem value="girls/coed">Girls/Coed</SelectItem>
+                          <SelectItem value="couple">Couple</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Special Requests</Label>
+                    <Input placeholder="Parking, food, metro, veg, etc." value={form.special_requests} onChange={e => setForm(f => ({ ...f, special_requests: e.target.value }))} className="h-10 rounded-xl" />
+                  </div>
                 </motion.div>
               ) : (
                 <motion.div
@@ -316,20 +397,70 @@ const QuickAddLead = () => {
                       <Input placeholder="Quick notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className="h-10 rounded-xl" />
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Move-in Date</Label>
+                      <Input placeholder="1st July / next month" value={form.move_in_date} onChange={e => setForm(f => ({ ...f, move_in_date: e.target.value }))} className="h-10 rounded-xl" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Student/Working</Label>
+                      <Select value={form.profession || 'unknown'} onValueChange={v => setForm(f => ({ ...f, profession: v === 'unknown' ? '' : v }))}>
+                        <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unknown">Not specified</SelectItem>
+                          <SelectItem value="student">Student</SelectItem>
+                          <SelectItem value="working">Working</SelectItem>
+                          <SelectItem value="intern">Intern</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Room Preference</Label>
+                      <Select value={form.room_type || 'unknown'} onValueChange={v => setForm(f => ({ ...f, room_type: v === 'unknown' ? '' : v }))}>
+                        <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unknown">Not specified</SelectItem>
+                          <SelectItem value="private">Private</SelectItem>
+                          <SelectItem value="shared">Shared</SelectItem>
+                          <SelectItem value="both">Both</SelectItem>
+                          <SelectItem value="any">Any</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Need (Boys/Girls/Coed)</Label>
+                      <Select value={form.need_preference || 'unknown'} onValueChange={v => setForm(f => ({ ...f, need_preference: v === 'unknown' ? '' : v }))}>
+                        <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unknown">Not specified</SelectItem>
+                          <SelectItem value="boys">Boys</SelectItem>
+                          <SelectItem value="girls">Girls</SelectItem>
+                          <SelectItem value="coed">Coed</SelectItem>
+                          <SelectItem value="boys/coed">Boys/Coed</SelectItem>
+                          <SelectItem value="girls/coed">Girls/Coed</SelectItem>
+                          <SelectItem value="couple">Couple</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Special Requests</Label>
+                    <Input placeholder="Parking, food, metro, veg, etc." value={form.special_requests} onChange={e => setForm(f => ({ ...f, special_requests: e.target.value }))} className="h-10 rounded-xl" />
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Duplicate warning */}
-            {duplicate && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-warning/10 border border-warning/20">
-                <AlertTriangle size={13} className="text-warning shrink-0 mt-0.5" />
-                <div className="text-xs">
-                  <p className="font-medium text-foreground">Duplicate: {duplicate.name}</p>
-                  <p className="text-muted-foreground text-[10px]">Status: {duplicate.status.replace(/_/g, ' ')}</p>
-                </div>
-              </div>
-            )}
+            {duplicate ? (
+              <p className="text-[11px] text-muted-foreground">
+                Duplicate phone detected ({duplicate.duplicateCount} leads with same number).
+              </p>
+            ) : null}
 
             {/* Submit */}
             <div className="flex gap-2 pt-1">

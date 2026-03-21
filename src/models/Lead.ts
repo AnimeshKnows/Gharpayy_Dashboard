@@ -11,6 +11,12 @@ export interface ILead extends Document {
   propertyId?: mongoose.Types.ObjectId;
   preferredLocation?: string;
   budget?: string;
+  moveInDate?: string;
+  profession?: string;
+  roomType?: string;
+  needPreference?: string;
+  specialRequests?: string;
+  notes?: string;
   leadScore: number;
   createdAt: Date;
   updatedAt: Date;
@@ -28,10 +34,16 @@ const LeadSchema: Schema = new Schema(
     },
     source: { type: String, required: true },
     firstResponseTimeMin: { type: Number },
-    assignedAgentId: { type: Schema.Types.ObjectId, ref: 'Agent' },
+    assignedAgentId: { type: Schema.Types.ObjectId, ref: 'User' },
     propertyId: { type: Schema.Types.ObjectId, ref: 'Property' },
     preferredLocation: { type: String },
     budget: { type: String },
+    moveInDate: { type: String },
+    profession: { type: String },
+    roomType: { type: String },
+    needPreference: { type: String },
+    specialRequests: { type: String },
+    notes: { type: String },
     leadScore: { type: Number, default: 0 },
   },
   { timestamps: true }

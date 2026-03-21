@@ -14,7 +14,14 @@ export type LeadWithRelations = {
   properties: { id: string, name: string } | null;
   preferredLocation?: string;
   budget?: string;
+  moveInDate?: string;
+  profession?: string;
+  roomType?: string;
+  needPreference?: string;
+  specialRequests?: string;
   leadScore: number;
+  isDuplicate?: boolean;
+  duplicateCount?: number;
   notes?: string;
   assignedAgentId?: string;
   createdAt: string;
@@ -68,8 +75,11 @@ export const useCreateLead = () => {
       if (!res.ok) throw new Error('Failed to create lead');
       return res.json();
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['leads'] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['leads'] });
+      await qc.invalidateQueries({ queryKey: ['leads-paginated'] });
+      await qc.invalidateQueries({ queryKey: ['leads', 'status'] });
+      await qc.refetchQueries({ queryKey: ['leads-paginated'], type: 'active' });
       toast.success('Lead created');
     },
   });
@@ -87,8 +97,11 @@ export const useUpdateLead = () => {
       if (!res.ok) throw new Error('Failed to update lead');
       return res.json();
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['leads'] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['leads'] });
+      await qc.invalidateQueries({ queryKey: ['leads-paginated'] });
+      await qc.invalidateQueries({ queryKey: ['leads', 'status'] });
+      await qc.refetchQueries({ queryKey: ['leads-paginated'], type: 'active' });
     },
   });
 };

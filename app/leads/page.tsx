@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
 
 const statusBadge = (status: string) => {
   const stage = PIPELINE_STAGES.find(s => s.key === status);
@@ -49,6 +50,10 @@ const Leads = () => {
   const bulkUpdate = useBulkUpdateLeads();
   const deleteLeads = useDeleteLeads();
   const updateLead = useUpdateLead();
+  const { user } = useAuth();
+  const canManageLeadAssignments = ['ceo', 'manager', 'admin'].includes(user?.role || '');
+  const adminAgentIds = new Set((agents || []).map((a: any) => String(a.id)));
+  const isAdmin = user?.role === 'admin';
 
   const filtered = (leads || [])
     .filter(l => {
@@ -140,7 +145,7 @@ const Leads = () => {
   }
 
   return (
-    <AppLayout title="All Leads" subtitle={`${filtered.length} leads found`} actions={<AddLeadDialog />}>
+    <AppLayout title="All Leads" subtitle={`${filtered.length} leads found`} actions={<AddLeadDialog />} showQuickAddLead={false}>
       {/* Filters */}
       <div className="flex items-center gap-3 mb-5 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
@@ -172,7 +177,7 @@ const Leads = () => {
       </div>
 
       {/* Bulk actions */}
-      {selectedIds.size > 0 && (
+      {selectedIds.size > 0 && canManageLeadAssignments && (
         <motion.div
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
@@ -220,10 +225,21 @@ const Leads = () => {
                 <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-secondary/20 transition-colors cursor-pointer group"
                   onClick={() => openDetail(lead)}>
                   <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
-                    <Checkbox checked={selectedIds.has(lead.id)} onCheckedChange={() => toggleSelect(lead.id)} />
+                    {canManageLeadAssignments ? (
+                      <Checkbox checked={selectedIds.has(lead.id)} onCheckedChange={() => toggleSelect(lead.id)} />
+                    ) : null}
                   </td>
                   <td className="px-4 py-3.5 font-medium text-foreground">{lead.name}</td>
-                  <td className="px-4 py-3.5 text-2xs text-muted-foreground">{lead.phone}</td>
+                  <td className="px-4 py-3.5 text-2xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <span>{lead.phone}</span>
+                      {lead.isDuplicate ? (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded border border-border text-muted-foreground">
+                          Duplicate
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="px-4 py-3.5 text-2xs text-muted-foreground">{SOURCE_LABELS[lead.source as keyof typeof SOURCE_LABELS] || lead.source}</td>
                   <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
                     <select
@@ -239,7 +255,16 @@ const Leads = () => {
                       <Star size={10} /> {lead.leadScore ?? 0}
                     </span>
                   </td>
-                  <td className="px-4 py-3.5 text-2xs text-muted-foreground">{lead.agents?.name || 'Unassigned'}</td>
+                  <td className="px-4 py-3.5 text-2xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <span>{lead.agents?.name || 'Unassigned'}</span>
+                      {isAdmin && lead.assignedAgentId && !adminAgentIds.has(String(lead.assignedAgentId)) ? (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-warning/15 text-warning border border-warning/30">
+                          Outside Team
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="px-4 py-3.5 text-2xs text-muted-foreground">{lead.preferredLocation || '—'}</td>
                   <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

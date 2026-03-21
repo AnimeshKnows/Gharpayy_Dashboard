@@ -2,12 +2,17 @@ import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import Agent from '@/models/Agent';
 import Lead from '@/models/Lead';
+import { getAuthUserFromCookie } from '@/lib/auth';
 
 export async function GET() {
   try {
+    const authUser = await getAuthUserFromCookie();
+    if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     await connectToDatabase();
 
-    const agents = await Agent.find({ isActive: true });
+    const query = authUser.zoneName ? { isActive: true, zoneName: authUser.zoneName } : { isActive: true };
+    const agents = await Agent.find(query);
     const leads = await Lead.find({}, 'id status assignedAgentId firstResponseTimeMin');
 
     const stats = agents.map(agent => {

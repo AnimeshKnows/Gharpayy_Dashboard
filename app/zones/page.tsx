@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { useZones, useCreateZone, useTeamQueues, useCreateTeamQueue, useEscalations, useUpdateEscalation } from '@/hooks/useZones';
+import { useZones, useCreateZone, useUpdateZone, useDeleteZone, useTeamQueues, useCreateTeamQueue, useEscalations, useUpdateEscalation } from '@/hooks/useZones';
 import { useAgents } from '@/hooks/useCrmData';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Map, Plus, Users, AlertTriangle, CheckCircle, Clock, Shield } from 'lucide-react';
+import { Map, Plus, Users, AlertTriangle, CheckCircle, Clock, Trash2, Pencil } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -24,12 +24,17 @@ const ZoneManagement = () => {
   const { data: queues } = useTeamQueues();
   const { data: escalations } = useEscalations('open');
   const createZone = useCreateZone();
+  const updateZone = useUpdateZone();
+  const deleteZone = useDeleteZone();
   const createQueue = useCreateTeamQueue();
   const updateEsc = useUpdateEscalation();
 
-  const [newZone, setNewZone] = useState({ name: '', city: 'Bangalore', areas: '', manager_id: '', color: ZONE_COLORS[0] });
+  const [newZone, setNewZone] = useState({ name: '', city: 'Bangalore', areas: '', color: ZONE_COLORS[0] });
+  const [editZone, setEditZone] = useState<any | null>(null);
+  const [editZoneForm, setEditZoneForm] = useState({ name: '', city: '', areas: '', color: ZONE_COLORS[0] });
   const [newQueue, setNewQueue] = useState({ zone_id: '', team_name: '', owner_agent_id: '' });
   const [zoneDialogOpen, setZoneDialogOpen] = useState(false);
+  const [editZoneDialogOpen, setEditZoneDialogOpen] = useState(false);
   const [queueDialogOpen, setQueueDialogOpen] = useState(false);
 
   const handleCreateZone = async () => {
@@ -38,10 +43,9 @@ const ZoneManagement = () => {
       name: newZone.name,
       city: newZone.city,
       areas: newZone.areas.split(',').map(a => a.trim()).filter(Boolean),
-      manager_id: newZone.manager_id || undefined,
       color: newZone.color,
     });
-    setNewZone({ name: '', city: 'Bangalore', areas: '', manager_id: '', color: ZONE_COLORS[0] });
+    setNewZone({ name: '', city: 'Bangalore', areas: '', color: ZONE_COLORS[0] });
     setZoneDialogOpen(false);
   };
 
@@ -59,6 +63,55 @@ const ZoneManagement = () => {
   const handleResolveEscalation = async (id: string) => {
     await updateEsc.mutateAsync({ id, status: 'resolved', resolved_at: new Date().toISOString() });
     toast.success('Escalation resolved');
+  };
+
+  const handleDeleteZone = async (zone: any) => {
+    const zoneId = zone.id || zone._id;
+    if (!zoneId) {
+      toast.error('Unable to identify zone');
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete zone \"${zone.name}\"?`);
+    if (!confirmed) return;
+
+    await deleteZone.mutateAsync(zoneId);
+  };
+
+  const handleOpenEditZone = (zone: any) => {
+    setEditZone(zone);
+    setEditZoneForm({
+      name: zone.name || '',
+      city: zone.city || '',
+      areas: Array.isArray(zone.areas) ? zone.areas.join(', ') : '',
+      color: zone.color || ZONE_COLORS[0],
+    });
+    setEditZoneDialogOpen(true);
+  };
+
+  const handleUpdateZone = async () => {
+    if (!editZone) return;
+    if (!editZoneForm.name || !editZoneForm.areas) {
+      toast.error('Name and areas required');
+      return;
+    }
+
+    const zoneId = editZone.id || editZone._id;
+    if (!zoneId) {
+      toast.error('Unable to identify zone');
+      return;
+    }
+
+    await updateZone.mutateAsync({
+      id: zoneId,
+      name: editZoneForm.name,
+      city: editZoneForm.city,
+      areas: editZoneForm.areas.split(',').map(a => a.trim()).filter(Boolean),
+      color: editZoneForm.color,
+    });
+
+    setEditZoneDialogOpen(false);
+    setEditZone(null);
   };
 
   if (isLoading) {
@@ -87,52 +140,92 @@ const ZoneManagement = () => {
         <TabsContent value="zones">
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs text-muted-foreground">{zones?.length || 0} active zones</p>
-            <Dialog open={zoneDialogOpen} onOpenChange={setZoneDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="gap-1.5 text-xs rounded-xl"><Plus size={12} /> New Zone</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>Create Zone</DialogTitle></DialogHeader>
-                <div className="space-y-3">
-                  <Input placeholder="Zone name (e.g. Marathahalli Cluster)" value={newZone.name} onChange={e => setNewZone({ ...newZone, name: e.target.value })} className="text-xs" />
-                  <Input placeholder="City" value={newZone.city} onChange={e => setNewZone({ ...newZone, city: e.target.value })} className="text-xs" />
-                  <Input placeholder="Areas (comma-separated: Marathahalli, Varthur, Kundalahalli)" value={newZone.areas} onChange={e => setNewZone({ ...newZone, areas: e.target.value })} className="text-xs" />
-                  <Select value={newZone.manager_id} onValueChange={v => setNewZone({ ...newZone, manager_id: v })}>
-                    <SelectTrigger className="text-xs"><SelectValue placeholder="Zone Manager (optional)" /></SelectTrigger>
-                    <SelectContent>{agents?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <div className="flex gap-2">
-                    {ZONE_COLORS.map(c => (
-                      <button key={c} className={`w-6 h-6 rounded-full border-2 transition-transform ${newZone.color === c ? 'scale-125 border-foreground' : 'border-transparent'}`}
-                        style={{ background: c }} onClick={() => setNewZone({ ...newZone, color: c })} />
-                    ))}
+            <div className="flex items-center gap-2">
+              <Dialog open={editZoneDialogOpen} onOpenChange={setEditZoneDialogOpen}>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Edit Zone</DialogTitle></DialogHeader>
+                  <div className="space-y-3">
+                    <Input placeholder="Zone name" value={editZoneForm.name} onChange={e => setEditZoneForm({ ...editZoneForm, name: e.target.value })} className="text-xs" />
+                    <Input placeholder="City" value={editZoneForm.city} onChange={e => setEditZoneForm({ ...editZoneForm, city: e.target.value })} className="text-xs" />
+                    <Input placeholder="Areas (comma-separated)" value={editZoneForm.areas} onChange={e => setEditZoneForm({ ...editZoneForm, areas: e.target.value })} className="text-xs" />
+                    <div className="flex gap-2">
+                      {ZONE_COLORS.map(c => (
+                        <button key={c} className={`w-6 h-6 rounded-full border-2 transition-transform ${editZoneForm.color === c ? 'scale-125 border-foreground' : 'border-transparent'}`}
+                          style={{ background: c }} onClick={() => setEditZoneForm({ ...editZoneForm, color: c })} />
+                      ))}
+                    </div>
+                    <Button className="w-full text-xs" onClick={handleUpdateZone} disabled={updateZone.isPending}>
+                      {updateZone.isPending ? 'Saving...' : 'Save Changes'}
+                    </Button>
                   </div>
-                  <Button className="w-full text-xs" onClick={handleCreateZone} disabled={createZone.isPending}>
-                    {createZone.isPending ? 'Creating...' : 'Create Zone'}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={zoneDialogOpen} onOpenChange={setZoneDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-1.5 text-xs rounded-xl"><Plus size={12} /> New Zone</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Create Zone</DialogTitle></DialogHeader>
+                  <div className="space-y-3">
+                    <Input placeholder="Zone name (e.g. Marathahalli Cluster)" value={newZone.name} onChange={e => setNewZone({ ...newZone, name: e.target.value })} className="text-xs" />
+                    <Input placeholder="City" value={newZone.city} onChange={e => setNewZone({ ...newZone, city: e.target.value })} className="text-xs" />
+                    <Input placeholder="Areas (comma-separated: Marathahalli, Varthur, Kundalahalli)" value={newZone.areas} onChange={e => setNewZone({ ...newZone, areas: e.target.value })} className="text-xs" />
+                    <div className="flex gap-2">
+                      {ZONE_COLORS.map(c => (
+                        <button key={c} className={`w-6 h-6 rounded-full border-2 transition-transform ${newZone.color === c ? 'scale-125 border-foreground' : 'border-transparent'}`}
+                          style={{ background: c }} onClick={() => setNewZone({ ...newZone, color: c })} />
+                      ))}
+                    </div>
+                    <Button className="w-full text-xs" onClick={handleCreateZone} disabled={createZone.isPending}>
+                      {createZone.isPending ? 'Creating...' : 'Create Zone'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {zones?.map((zone: any, i: number) => (
-              <motion.div key={zone.id} className="kpi-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+              <motion.div key={zone.id || zone._id || `${zone.name}-${i}`} className="kpi-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ background: zone.color }} />
                     <h3 className="font-display font-semibold text-sm text-foreground">{zone.name}</h3>
                   </div>
-                  <Badge variant="outline" className="text-[9px]">{zone.city}</Badge>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => handleOpenEditZone(zone)}
+                      aria-label={`Edit ${zone.name}`}
+                    >
+                      <Pencil size={12} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteZone(zone)}
+                      disabled={deleteZone.isPending}
+                      aria-label={`Delete ${zone.name}`}
+                    >
+                      <Trash2 size={12} />
+                    </Button>
+                  </div>
                 </div>
+                <p className="text-[11px] text-muted-foreground mb-2">
+                  <span className="font-medium text-foreground">City:</span> {zone.city || 'NA'}
+                </p>
                 <div className="flex flex-wrap gap-1.5 mb-3">
-                  {(zone.areas || []).map((area: string) => (
-                    <span key={area} className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-foreground">{area}</span>
+                  {(zone.areas || []).map((area: string, areaIndex: number) => (
+                    <span key={`${area}-${areaIndex}`} className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-foreground">{area}</span>
                   ))}
-                </div>
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground border-t border-border pt-3">
-                  <Shield size={10} />
-                  <span>Manager: {zone.agents?.name || 'Unassigned'}</span>
+                  {(!zone.areas || zone.areas.length === 0) && (
+                    <span className="text-[10px] text-muted-foreground">No areas added</span>
+                  )}
                 </div>
               </motion.div>
             ))}
