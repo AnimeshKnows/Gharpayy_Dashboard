@@ -22,7 +22,7 @@ export type AuthTokenPayload = {
   username: string;
   email: string;
   fullName: string;
-  role: 'ceo' | 'manager' | 'admin' | 'agent' | 'user';
+  role: 'super_admin' | 'manager' | 'admin' | 'member' | 'user';
   zones?: string[];
   zoneName?: string; // deprecated, kept for backward compatibility
 };
@@ -30,8 +30,8 @@ export type AuthTokenPayload = {
 export async function ensureDefaultCEO() {
   await connectToDatabase();
 
-  const ceoUsername = normalizeUsername('ceo@gharpayy');
-  const ceoEmail = 'ceo@gharpayy';
+  const ceoUsername = normalizeUsername('superadmin@gharpayy');
+  const ceoEmail = 'superadmin@gharpayy';
   const ceoFullName = 'Gharpayy';
   const ceoPassword = '12345678';
   const existing = await User.findOne({ username: ceoUsername });
@@ -40,14 +40,14 @@ export async function ensureDefaultCEO() {
     return;
   }
 
-  // Create default CEO user
+  // Create default Super Admin user
   const hashedPassword = await bcrypt.hash(ceoPassword, 12);
   await User.create({
     username: ceoUsername,
     email: ceoEmail,
     password: hashedPassword,
     fullName: ceoFullName,
-    role: 'ceo',
+    role: 'super_admin',
     zones: [],
     managerIds: [],
     adminIds: [],

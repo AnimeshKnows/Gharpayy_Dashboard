@@ -169,7 +169,7 @@ const Dashboard = () => {
                   <p className="text-[10px] text-muted-foreground">{lead.preferredLocation} · {lead.budget}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] text-muted-foreground">{lead.agents?.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{lead.members?.name}</p>
                   <p className="text-[10px] text-destructive font-medium">Awaiting</p>
                 </div>
               </div>
@@ -226,26 +226,26 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Agent Performance */}
+      {/* Member Performance */}
       <div className="kpi-card mt-6">
-        <h3 className="font-display font-semibold text-xs text-foreground mb-4">Agent Performance</h3>
+        <h3 className="font-display font-semibold text-xs text-foreground mb-4">Member Performance</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-          {(agentStats || []).map(agent => (
-            <div key={agent.id} className="flex items-center gap-3 p-3.5 rounded-xl bg-secondary/50">
+          {(agentStats || []).map(member => (
+            <div key={member.id} className="flex items-center gap-3 p-3.5 rounded-xl bg-secondary/50">
               <div className="w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center">
-                <span className="text-2xs font-bold text-accent">{agent.name.charAt(0)}</span>
+                <span className="text-2xs font-bold text-accent">{member.name.charAt(0)}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-foreground">{agent.name}</p>
+                <p className="text-xs font-medium text-foreground">{member.name}</p>
                 <div className="flex gap-3 mt-0.5">
-                  <span className="text-[10px] text-muted-foreground">{agent.activeLeads} active</span>
-                  <span className="text-[10px] text-muted-foreground">{agent.avgResponseTime}m avg</span>
-                  <span className="text-[10px] text-success">{agent.conversions} booked</span>
+                  <span className="text-[10px] text-muted-foreground">{member.activeLeads} active</span>
+                  <span className="text-[10px] text-muted-foreground">{member.avgResponseTime}m avg</span>
+                  <span className="text-[10px] text-success">{member.conversions} booked</span>
                 </div>
               </div>
               <div className="text-right">
                 <p className="text-base font-display font-bold text-foreground">
-                  {agent.totalLeads ? Math.round((agent.conversions / agent.totalLeads) * 100) : 0}%
+                  {member.totalLeads ? Math.round((member.conversions / member.totalLeads) * 100) : 0}%
                 </p>
                 <p className="text-[9px] text-muted-foreground">conversion</p>
               </div>

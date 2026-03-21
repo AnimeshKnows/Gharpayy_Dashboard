@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(req: Request) {
   try {
-    // Ensure CEO exists in database
+    // Ensure Super Admin exists in database
     await ensureDefaultCEO();
 
     const body = await req.json();

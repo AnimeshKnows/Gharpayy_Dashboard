@@ -4,13 +4,13 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 
 const OnboardingCard = () => {
-  const { data: agents } = useAgents();
+  const { data: members } = useAgents();
   const { data: leads } = useLeads();
   const { data: properties } = useProperties();
   const router = useRouter();
 
   const steps = [
-    { label: 'Add your first agent', done: (agents?.length || 0) > 0, icon: Users, path: '/settings' },
+    { label: 'Add your first member', done: (members?.length || 0) > 0, icon: Users, path: '/settings' },
     { label: 'Add a property', done: (properties?.length || 0) > 0, icon: Building2, path: '/settings' },
     { label: 'Create your first lead', done: (leads?.length || 0) > 0, icon: UserPlus, path: '/leads' },
   ];

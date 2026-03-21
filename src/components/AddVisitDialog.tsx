@@ -20,7 +20,7 @@ const AddVisitDialog = () => {
   const createVisit = useCreateVisit();
   const { data: leads } = useLeads();
   const { data: properties } = useProperties();
-  const { data: agents } = useAgents();
+  const { data: members } = useAgents();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +85,7 @@ const AddVisitDialog = () => {
             <Select value={form.assigned_staff_id} onValueChange={v => setForm(f => ({ ...f, assigned_staff_id: v }))}>
               <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
               <SelectContent>
-                {agents?.map(a => (
+                {members?.map(a => (
                   <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
                 ))}
               </SelectContent>

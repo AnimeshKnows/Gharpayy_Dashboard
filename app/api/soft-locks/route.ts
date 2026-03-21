@@ -21,7 +21,7 @@ export async function GET(req: Request) {
       ...l.toObject(),
       id: l._id,
       leads: l.leadId,
-      agents: l.lockedBy
+      members: l.lockedBy
     }));
 
     return NextResponse.json(transformedLocks);

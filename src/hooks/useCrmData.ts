@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-// Type for lead with joined agent and property
+// Type for lead with joined member and property
 export type LeadWithRelations = {
   id: string;
   name: string;
@@ -10,7 +10,7 @@ export type LeadWithRelations = {
   status: string;
   source: string;
   firstResponseTimeMin?: number;
-  agents: { id: string, name: string } | null;
+  members: { id: string, name: string } | null;
   properties: { id: string, name: string } | null;
   preferredLocation?: string;
   budget?: string;
@@ -19,11 +19,12 @@ export type LeadWithRelations = {
   roomType?: string;
   needPreference?: string;
   specialRequests?: string;
+  parsedMetadata?: Record<string, any>;
   leadScore: number;
   isDuplicate?: boolean;
   duplicateCount?: number;
   notes?: string;
-  assignedAgentId?: string;
+  assignedMemberId?: string;
   createdAt: string;
   lastActivityAt: string;
 };
@@ -108,10 +109,10 @@ export const useUpdateLead = () => {
 
 export const useAgents = () =>
   useQuery({
-    queryKey: ['agents'],
+    queryKey: ['members'],
     queryFn: async () => {
-      const res = await fetch('/api/agents');
-      if (!res.ok) throw new Error('Failed to fetch agents');
+      const res = await fetch('/api/members');
+      if (!res.ok) throw new Error('Failed to fetch members');
       return res.json();
     },
   });
@@ -119,16 +120,16 @@ export const useAgents = () =>
 export const useCreateAgent = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (agent: any) => {
-      const res = await fetch('/api/agents', {
+    mutationFn: async (member: any) => {
+      const res = await fetch('/api/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(agent),
+        body: JSON.stringify(member),
       });
-      if (!res.ok) throw new Error('Failed to create agent');
+      if (!res.ok) throw new Error('Failed to create member');
       return res.json();
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
   });
 };
 
@@ -136,15 +137,15 @@ export const useUpdateAgent = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
-      const res = await fetch(`/api/agents/${id}`, {
+      const res = await fetch(`/api/members/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
-      if (!res.ok) throw new Error('Failed to update agent');
+      if (!res.ok) throw new Error('Failed to update member');
       return res.json();
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
   });
 };
 
@@ -152,11 +153,11 @@ export const useDeleteAgent = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/agents/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete agent');
+      const res = await fetch(`/api/members/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete member');
       return res.json();
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['members'] }),
   });
 };
 
@@ -228,13 +229,13 @@ export const useCreateVisit = () => {
   });
 };
 
-// Agent Stats (for dashboard)
+// Member Stats (for dashboard)
 export const useAgentStats = () =>
   useQuery({
-    queryKey: ['agent-stats'],
+    queryKey: ['member-stats'],
     queryFn: async () => {
-      const res = await fetch('/api/agents/stats');
-      if (!res.ok) throw new Error('Failed to fetch agent stats');
+      const res = await fetch('/api/members/stats');
+      if (!res.ok) throw new Error('Failed to fetch member stats');
       return res.json();
     },
   });

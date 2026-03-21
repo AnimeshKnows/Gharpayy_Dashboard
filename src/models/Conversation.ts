@@ -13,7 +13,7 @@ export interface IConversation extends Document {
 const ConversationSchema: Schema = new Schema(
   {
     leadId: { type: Schema.Types.ObjectId, ref: 'Lead', required: true },
-    agentId: { type: Schema.Types.ObjectId, ref: 'Agent' },
+    agentId: { type: Schema.Types.ObjectId, ref: 'Member' },
     message: { type: String, required: true },
     source: { type: String, enum: ['whatsapp', 'email', 'phone', 'manual'], default: 'manual' },
     direction: { type: String, enum: ['inbound', 'outbound'], default: 'outbound' },

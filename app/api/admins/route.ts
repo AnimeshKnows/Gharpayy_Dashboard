@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import connectToDatabase from '@/lib/mongodb';
 import User from '@/models/User';
-import Agent from '@/models/Agent';
+import Member from '@/models/User';
 import Zone from '@/models/Zone';
 import { getAuthUserFromCookie, normalizeUsername } from '@/lib/auth';
 
@@ -10,13 +10,14 @@ export async function GET() {
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can access admin list' }, { status: 403 });
+    if (authUser.role !== 'super_admin' && authUser.role !== 'manager') {
+      return NextResponse.json({ error: 'Unauthorized to view admins' }, { status: 403 });
     }
 
     await connectToDatabase();
 
-    const admins = await User.find({ role: 'admin' })
+    const query = authUser.role === 'manager' ? { role: 'admin', managerId: authUser.id } : { role: 'admin' };
+    const admins = await User.find(query)
       .select('-password')
       .populate('adminIds', '-password')
       .populate('managerId', 'fullName email username')
@@ -31,13 +32,13 @@ export async function GET() {
       zones: admin.zones || [],
       role: admin.role,
       managerId: admin.managerId,
-      agents: admin.adminIds?.map((agent: any) => ({
-        id: agent._id,
-        name: agent.fullName,
-        email: agent.email,
-        phone: agent.phone,
-        username: agent.username,
-        zones: agent.zones || [],
+      members: admin.adminIds?.map((member: any) => ({
+        id: member._id,
+        name: member.fullName,
+        email: member.email,
+        phone: member.phone,
+        username: member.username,
+        zones: member.zones || [],
         isActive: true,
       })) || [],
       createdAt: admin.createdAt,
@@ -53,8 +54,8 @@ export async function POST(req: Request) {
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can add admins' }, { status: 403 });
+    if (authUser.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Only Super Admin can add admins' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -73,12 +74,10 @@ export async function POST(req: Request) {
 
     const zoneDocs = await Zone.find({ isActive: true }).select('name');
     const zoneNames = new Set(zoneDocs.map((z: any) => String(z.name).trim().toLowerCase()));
-    const invalidZones = zones.filter((z: string) => !zoneNames.has(String(z).trim().toLowerCase()));
-    if (invalidZones.length > 0) {
-      return NextResponse.json(
-        { error: `Invalid zones selected: ${invalidZones.join(', ')}` },
-        { status: 400 }
-      );
+    for (const z of zones) {
+      if (!zoneNames.has(String(z).trim().toLowerCase())) {
+        try { await Zone.create({ name: String(z).trim(), isActive: true }); } catch (e) {}
+      }
     }
 
     const existing = await User.findOne({ $or: [{ username }, { email }] });
@@ -118,7 +117,7 @@ export async function POST(req: Request) {
         phone: admin.phone,
         zones: admin.zones || [],
         role: admin.role,
-        agents: [],
+        members: [],
         message: 'Admin created successfully'
       },
       { status: 201 }

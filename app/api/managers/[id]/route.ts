@@ -9,8 +9,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can access manager details' }, { status: 403 });
+    if (authUser.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Only Super Admin can access manager details' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -53,8 +53,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can update managers' }, { status: 403 });
+    if (authUser.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Only Super Admin can update managers' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -146,8 +146,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can delete managers' }, { status: 403 });
+    if (authUser.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Only Super Admin can delete managers' }, { status: 403 });
     }
 
     const { id } = await params;

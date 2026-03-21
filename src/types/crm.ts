@@ -37,7 +37,7 @@ export type PipelineStage =
 
 export type VisitOutcome = 'booked' | 'considering' | 'not_interested';
 
-export interface Agent {
+export interface Member {
   id: string;
   name: string;
   avatar?: string;

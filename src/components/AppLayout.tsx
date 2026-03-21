@@ -73,7 +73,7 @@ const AppLayout = ({ children, title, subtitle, actions, showQuickAddLead = true
 
         {/* Content — 32px page margin */}
         <motion.main
-          className="p-6 md:p-8"
+          className="p-[5px] sm:p-6 md:p-8"
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}

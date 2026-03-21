@@ -15,8 +15,8 @@ const TeamQueueSchema: Schema = new Schema(
   {
     zoneId: { type: Schema.Types.ObjectId, ref: 'Zone', required: true },
     teamName: { type: String, required: true },
-    ownerAgentId: { type: Schema.Types.ObjectId, ref: 'Agent' },
-    memberIds: [{ type: Schema.Types.ObjectId, ref: 'Agent' }],
+    ownerAgentId: { type: Schema.Types.ObjectId, ref: 'Member' },
+    memberIds: [{ type: Schema.Types.ObjectId, ref: 'Member' }],
     dispatchRule: { type: String, default: 'round_robin' },
     isActive: { type: Boolean, default: true },
   },

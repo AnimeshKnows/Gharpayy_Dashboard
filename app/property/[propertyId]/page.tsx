@@ -468,7 +468,7 @@ export default function PropertyDetail() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Book a Virtual Tour</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">See the property from the comfort of your home. A Gharpayy agent will give you a live video walkthrough.</p>
+            <p className="text-sm text-muted-foreground">See the property from the comfort of your home. A Gharpayy member will give you a live video walkthrough.</p>
             <div><Label>Your Name</Label><Input placeholder="Full name" /></div>
             <div><Label>Phone / WhatsApp</Label><Input placeholder="+91..." /></div>
             <div><Label>Preferred Slot</Label>

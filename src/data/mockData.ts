@@ -1,6 +1,6 @@
-import { Lead, Agent, Visit } from '@/types/crm';
+import { Lead, Member, Visit } from '@/types/crm';
 
-export const mockAgents: Agent[] = [
+export const mockAgents: Member[] = [
   { id: 'a1', name: 'Priya Sharma', activeLeads: 12, totalLeads: 45, avgResponseTime: 3.2, conversions: 8, visitsScheduled: 15 },
   { id: 'a2', name: 'Rahul Verma', activeLeads: 9, totalLeads: 38, avgResponseTime: 4.1, conversions: 6, visitsScheduled: 12 },
   { id: 'a3', name: 'Anita Desai', activeLeads: 14, totalLeads: 52, avgResponseTime: 2.8, conversions: 11, visitsScheduled: 18 },

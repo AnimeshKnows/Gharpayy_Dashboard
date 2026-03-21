@@ -37,10 +37,10 @@ interface Admin {
   phone: string;
   zones: string[];
   role: string;
-  agents: Agent[];
+  members: Member[];
 }
 
-interface Agent {
+interface Member {
   id: string;
   name: string;
   email: string;
@@ -50,13 +50,13 @@ interface Agent {
   adminId?: any;
 }
 
-export function CEOSettingsPanel() {
+export function SuperAdminSettingsPanel() {
   const [managers, setManagers] = useState<Manager[]>([]);
   const [admins, setAdmins] = useState<Admin[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [members, setAgents] = useState<Member[]>([]);
   const [zones, setZones] = useState<ZoneOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'managers' | 'admins' | 'agents'>('managers');
+  const [activeTab, setActiveTab] = useState<'managers' | 'admins' | 'members'>('managers');
 
   useEffect(() => {
     loadData();
@@ -68,7 +68,7 @@ export function CEOSettingsPanel() {
       const [managersRes, adminsRes, agentsRes] = await Promise.all([
         fetch('/api/managers'),
         fetch('/api/admins'),
-        fetch('/api/agents'),
+        fetch('/api/members'),
       ]);
 
       if (managersRes.ok) setManagers(await managersRes.json());
@@ -95,7 +95,7 @@ export function CEOSettingsPanel() {
     <div className="space-y-6">
       {/* Tabs */}
       <div className="flex gap-2 border-b">
-        {(['managers', 'admins', 'agents'] as const).map((tab) => (
+        {(['managers', 'admins', 'members'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -118,7 +118,7 @@ export function CEOSettingsPanel() {
         <>
           {activeTab === 'managers' && <ManagersSection managers={managers} onRefresh={loadData} />}
           {activeTab === 'admins' && <AdminsSection admins={admins} zones={zones} onRefresh={loadData} />}
-          {activeTab === 'agents' && <AgentsSection agents={agents} admins={admins} zones={zones} onRefresh={loadData} />}
+          {activeTab === 'members' && <AgentsSection members={members} admins={admins} zones={zones} onRefresh={loadData} />}
         </>
       )}
     </div>
@@ -775,13 +775,13 @@ function AdminsSection({ admins, zones, onRefresh }: { admins: Admin[]; zones: Z
               </div>
             </div>
 
-            {admin.agents && admin.agents.length > 0 && (
+            {admin.members && admin.members.length > 0 && (
               <div className="mt-4 pt-4 border-t space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Assigned Agents ({admin.agents.length})</p>
-                {admin.agents.map((agent) => (
-                  <div key={agent.id} className="bg-secondary/50 p-2 rounded text-xs">
-                    <p className="font-medium">{agent.name}</p>
-                    <p className="text-[11px] text-muted-foreground">Zones: {agent.zones.join(', ')}</p>
+                <p className="text-xs font-medium text-muted-foreground">Assigned Members ({admin.members.length})</p>
+                {admin.members.map((member) => (
+                  <div key={member.id} className="bg-secondary/50 p-2 rounded text-xs">
+                    <p className="font-medium">{member.name}</p>
+                    <p className="text-[11px] text-muted-foreground">Zones: {member.zones.join(', ')}</p>
                   </div>
                 ))}
               </div>
@@ -870,7 +870,7 @@ function AdminsSection({ admins, zones, onRefresh }: { admins: Admin[]; zones: Z
   );
 }
 
-function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; admins: Admin[]; zones: ZoneOption[]; onRefresh: () => void }) {
+function AgentsSection({ members, admins, zones, onRefresh }: { members: Member[]; admins: Admin[]; zones: ZoneOption[]; onRefresh: () => void }) {
   const [showForm, setShowForm] = useState(false);
   const [selectedZones, setSelectedZones] = useState<string[]>([]);
   const [selectedAdmin, setSelectedAdmin] = useState<string>('');
@@ -901,7 +901,7 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
 
     try {
       setSaving(true);
-      const res = await fetch('/api/agents', {
+      const res = await fetch('/api/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -913,7 +913,7 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
 
       if (!res.ok) throw new Error((await res.json()).error);
 
-      toast.success('Agent created successfully');
+      toast.success('Member created successfully');
       setShowForm(false);
       setForm({ fullName: '', email: '', phone: '', username: '', password: '' });
       setSelectedZones([]);
@@ -930,9 +930,9 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
     if (!confirm('Are you sure?')) return;
 
     try {
-      const res = await fetch(`/api/agents/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/members/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Agent deleted');
+      toast.success('Member deleted');
       onRefresh();
     } catch (err: any) {
       toast.error(err.message);
@@ -944,7 +944,7 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
     if (!password) return;
 
     try {
-      const res = await fetch(`/api/agents/${id}`, {
+      const res = await fetch(`/api/members/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
@@ -957,16 +957,16 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
     }
   };
 
-  const handleEditAgent = (agent: Agent) => {
-    setEditingId(agent.id);
+  const handleEditAgent = (member: Member) => {
+    setEditingId(member.id);
     setEditForm({
-      fullName: agent.name || '',
-      email: agent.email || '',
-      phone: agent.phone || '',
-      username: agent.username || '',
+      fullName: member.name || '',
+      email: member.email || '',
+      phone: member.phone || '',
+      username: member.username || '',
     });
-    setEditZones(agent.zones || []);
-    const currentAdminId = typeof agent.adminId === 'string' ? agent.adminId : agent.adminId?._id;
+    setEditZones(member.zones || []);
+    const currentAdminId = typeof member.adminId === 'string' ? member.adminId : member.adminId?._id;
     setEditAdminId(currentAdminId || '__none__');
   };
 
@@ -983,7 +983,7 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
 
     try {
       setUpdating(true);
-      const res = await fetch(`/api/agents/${editingId}`, {
+      const res = await fetch(`/api/members/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -997,7 +997,7 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
       });
 
       if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Agent updated');
+      toast.success('Member updated');
       setEditingId(null);
       onRefresh();
     } catch (err: any) {
@@ -1009,17 +1009,17 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
 
   return (
     <div className="space-y-6">
-      {/* Add Agent Form */}
+      {/* Add Member Form */}
       {showForm && (
         <div className="border rounded-lg p-4 bg-secondary/30">
-          <h3 className="font-semibold mb-4">Add New Agent</h3>
+          <h3 className="font-semibold mb-4">Add New Member</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label className="text-xs">Full Name *</Label>
               <Input
                 value={form.fullName}
                 onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                placeholder="Agent name"
+                placeholder="Member name"
                 className="text-xs"
               />
             </div>
@@ -1028,7 +1028,7 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
               <Input
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="agent@example.com"
+                placeholder="member@example.com"
                 className="text-xs"
               />
             </div>
@@ -1046,7 +1046,7 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
               <Input
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
-                placeholder="agent@gharpayy"
+                placeholder="member@gharpayy"
                 className="text-xs"
               />
             </div>
@@ -1108,7 +1108,7 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
           <div className="flex gap-2 mt-4">
             <Button size="sm" onClick={handleAddAgent} disabled={saving || zones.length === 0}>
               <Plus size={14} className="mr-1" />
-              {saving ? 'Creating...' : 'Create Agent'}
+              {saving ? 'Creating...' : 'Create Member'}
             </Button>
             <Button
               size="sm"
@@ -1127,38 +1127,38 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
 
       {!showForm && (
         <Button size="sm" onClick={() => setShowForm(true)}>
-          <Plus size={14} className="mr-1" /> Add Agent
+          <Plus size={14} className="mr-1" /> Add Member
         </Button>
       )}
 
-      {/* Agents List */}
+      {/* Members List */}
       <div className="space-y-3">
-        {agents.map((agent) => (
-          <div key={agent.id} className="border rounded-lg p-4 bg-card">
+        {members.map((member) => (
+          <div key={member.id} className="border rounded-lg p-4 bg-card">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <h4 className="font-semibold">{agent.name}</h4>
-                <p className="text-xs text-muted-foreground">Email: {agent.email}</p>
-                <p className="text-xs text-muted-foreground">Phone: {agent.phone}</p>
-                <p className="text-xs text-muted-foreground">Username: {agent.username}</p>
-                <p className="text-xs text-muted-foreground">Zones: {agent.zones.join(', ')}</p>
+                <h4 className="font-semibold">{member.name}</h4>
+                <p className="text-xs text-muted-foreground">Email: {member.email}</p>
+                <p className="text-xs text-muted-foreground">Phone: {member.phone}</p>
+                <p className="text-xs text-muted-foreground">Username: {member.username}</p>
+                <p className="text-xs text-muted-foreground">Zones: {member.zones.join(', ')}</p>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => handleEditAgent(agent)}>
+                <Button size="sm" variant="outline" onClick={() => handleEditAgent(member)}>
                   <Pencil size={12} />
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => handleResetPassword(agent.id, agent.name)}>
+                <Button size="sm" variant="outline" onClick={() => handleResetPassword(member.id, member.name)}>
                   <KeyRound size={12} />
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => handleDeleteAgent(agent.id)}>
+                <Button size="sm" variant="destructive" onClick={() => handleDeleteAgent(member.id)}>
                   <Trash2 size={12} />
                 </Button>
               </div>
             </div>
 
-            {editingId === agent.id && (
+            {editingId === member.id && (
               <div className="mt-4 pt-4 border-t space-y-4">
-                <h5 className="text-xs font-semibold">Edit Agent</h5>
+                <h5 className="text-xs font-semibold">Edit Member</h5>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Full Name *</Label>
@@ -1249,7 +1249,7 @@ function AgentsSection({ agents, admins, zones, onRefresh }: { agents: Agent[]; 
             )}
           </div>
         ))}
-        {agents.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No agents created yet</p>}
+        {members.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No members created yet</p>}
       </div>
     </div>
   );

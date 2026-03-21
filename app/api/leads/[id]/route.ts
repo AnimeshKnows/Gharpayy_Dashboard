@@ -7,15 +7,15 @@ import { getAuthUserFromCookie } from '@/lib/auth';
 async function validateAgentAssignment(authUser: any, agentId?: string | null) {
   if (!agentId) return null;
 
-  const agent = await User.findOne({ _id: agentId, role: 'agent' }).select('_id adminId');
-  if (!agent) return 'Selected agent not found';
+  const member = await User.findOne({ _id: agentId, role: 'member' }).select('_id adminId');
+  if (!member) return 'Selected member not found';
 
-  if (authUser.role === 'admin' && String(agent.adminId || '') !== String(authUser.id)) {
-    return 'Admins can assign leads only to agents under them';
+  if (authUser.role === 'admin' && String(member.adminId || '') !== String(authUser.id)) {
+    return 'Admins can assign leads only to members under them';
   }
 
-  if (!['ceo', 'manager', 'admin'].includes(authUser.role)) {
-    return 'Only CEO, manager, and admin can assign leads';
+  if (!['super_admin', 'manager', 'admin', 'member'].includes(authUser.role)) {
+    return 'Only Super Admin, manager, admin, and member can assign leads';
   }
 
   return null;
@@ -33,17 +33,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const lead = await Lead.findById(id);
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    if (authUser.role === 'agent' && String(lead.assignedAgentId || '') !== String(authUser.id)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
 
-    if (!['ceo', 'manager', 'admin', 'agent'].includes(authUser.role)) {
+
+    if (!['super_admin', 'manager', 'admin', 'member'].includes(authUser.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const updates: any = { ...body };
-    if (body.assigned_agent_id !== undefined && body.assignedAgentId === undefined) {
-      updates.assignedAgentId = body.assigned_agent_id;
+    if (body.assigned_member_id !== undefined && body.assignedMemberId === undefined) {
+      updates.assignedMemberId = body.assigned_member_id;
     }
     if (body.preferred_location !== undefined && body.preferredLocation === undefined) {
       updates.preferredLocation = body.preferred_location;
@@ -60,10 +58,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.special_requests !== undefined && body.specialRequests === undefined) {
       updates.specialRequests = body.special_requests;
     }
+    if (body.parsed_metadata !== undefined && body.parsedMetadata === undefined) {
+      updates.parsedMetadata = body.parsed_metadata;
+    }
 
-    const isAgentReassignAttempt = updates.assignedAgentId !== undefined;
+    const isAgentReassignAttempt = updates.assignedMemberId !== undefined;
     if (isAgentReassignAttempt) {
-      const assignmentError = await validateAgentAssignment(authUser, updates.assignedAgentId || null);
+      const assignmentError = await validateAgentAssignment(authUser, updates.assignedMemberId || null);
       if (assignmentError) {
         return NextResponse.json({ error: assignmentError }, { status: 403 });
       }
@@ -74,15 +75,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (!updated) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    const assignedAgent = updated.assignedAgentId
-      ? await User.findOne({ _id: updated.assignedAgentId, role: 'agent' }).select('_id fullName')
+    const assignedAgent = updated.assignedMemberId
+      ? await User.findOne({ _id: updated.assignedMemberId, role: 'member' }).select('_id fullName')
       : null;
 
     return NextResponse.json({
       ...updated.toObject(),
       id: updated._id.toString(),
-      assignedAgentId: updated.assignedAgentId?.toString?.(),
-      agents: assignedAgent ? { id: assignedAgent._id.toString(), name: assignedAgent.fullName } : null,
+      assignedMemberId: updated.assignedMemberId?.toString?.(),
+      members: assignedAgent ? { id: assignedAgent._id.toString(), name: assignedAgent.fullName } : null,
       properties:
         updated.propertyId && typeof updated.propertyId === 'object' && '_id' in updated.propertyId
           ? { id: (updated.propertyId as any)._id.toString(), name: (updated.propertyId as any).name }

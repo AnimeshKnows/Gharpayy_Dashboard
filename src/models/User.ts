@@ -6,12 +6,12 @@ export interface IUser extends Document {
   phone?: string;
   password?: string;
   fullName: string;
-  role: 'ceo' | 'manager' | 'admin' | 'agent' | 'user';
-  zones?: string[]; // for admins and agents
-  managerIds?: mongoose.Types.ObjectId[]; // for CEOs and managers
-  adminIds?: mongoose.Types.ObjectId[]; // for CEOs and managers
-  managerId?: mongoose.Types.ObjectId; // for agents
-  adminId?: mongoose.Types.ObjectId; // for agents
+  role: 'super_admin' | 'manager' | 'admin' | 'member' | 'user';
+  zones?: string[]; // for admins and members
+  managerIds?: mongoose.Types.ObjectId[]; // for super_admins and managers
+  adminIds?: mongoose.Types.ObjectId[]; // for super_admins and managers
+  managerId?: mongoose.Types.ObjectId; // for members
+  adminId?: mongoose.Types.ObjectId; // for members
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,12 +23,12 @@ const UserSchema: Schema = new Schema(
     phone: { type: String, required: false },
     password: { type: String, required: false }, // optional for OAuth users
     fullName: { type: String, required: true },
-    role: { type: String, enum: ['ceo', 'manager', 'admin', 'agent', 'user'], default: 'user' },
-    zones: { type: [String], default: [] }, // zones assigned to admin/agent
+    role: { type: String, enum: ['super_admin', 'manager', 'admin', 'member', 'user'], default: 'user' },
+    zones: { type: [String], default: [] }, // zones assigned to admin/member
     managerIds: [{ type: Schema.Types.ObjectId, ref: 'User' }], // admins managed by this manager
-    adminIds: [{ type: Schema.Types.ObjectId, ref: 'User' }], // agents managed by this admin
+    adminIds: [{ type: Schema.Types.ObjectId, ref: 'User' }], // members managed by this admin
     managerId: { type: Schema.Types.ObjectId, ref: 'User' }, // parent manager for this admin
-    adminId: { type: Schema.Types.ObjectId, ref: 'User' }, // parent admin for this agent
+    adminId: { type: Schema.Types.ObjectId, ref: 'User' }, // parent admin for this member
   },
   { timestamps: true }
 );

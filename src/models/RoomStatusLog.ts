@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IRoomStatusLog extends Document {
   roomId: mongoose.Types.ObjectId;
   status: string;
-  confirmedBy?: mongoose.Types.ObjectId; // Agent/User ID
+  confirmedBy?: mongoose.Types.ObjectId; // Member/User ID
   notes?: string;
   rentUpdated?: boolean;
   createdAt: Date;

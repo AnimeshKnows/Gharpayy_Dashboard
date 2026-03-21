@@ -8,8 +8,8 @@ export async function GET() {
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can access manager list' }, { status: 403 });
+    if (authUser.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Only Super Admin can access manager list' }, { status: 403 });
     }
 
     await connectToDatabase();
@@ -48,8 +48,8 @@ export async function POST(req: Request) {
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can add managers' }, { status: 403 });
+    if (authUser.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Only Super Admin can add managers' }, { status: 403 });
     }
 
     const body = await req.json();

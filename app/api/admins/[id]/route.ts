@@ -10,8 +10,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can access admin details' }, { status: 403 });
+    if (authUser.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Only Super Admin can access admin details' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -35,13 +35,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       zones: admin.zones || [],
       role: admin.role,
       managerId: admin.managerId,
-      agents: admin.adminIds?.map((agent: any) => ({
-        id: agent._id,
-        name: agent.fullName,
-        email: agent.email,
-        phone: agent.phone,
-        username: agent.username,
-        zones: agent.zones || [],
+      members: admin.adminIds?.map((member: any) => ({
+        id: member._id,
+        name: member.fullName,
+        email: member.email,
+        phone: member.phone,
+        username: member.username,
+        zones: member.zones || [],
       })) || [],
       createdAt: admin.createdAt,
     });
@@ -54,8 +54,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can update admins' }, { status: 403 });
+    if (authUser.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Only Super Admin can update admins' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -90,12 +90,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (Array.isArray(body.zones)) {
       const zoneDocs = await Zone.find({ isActive: true }).select('name');
       const zoneNames = new Set(zoneDocs.map((z: any) => String(z.name).trim().toLowerCase()));
-      const invalidZones = body.zones.filter((z: string) => !zoneNames.has(String(z).trim().toLowerCase()));
-      if (invalidZones.length > 0) {
-        return NextResponse.json(
-          { error: `Invalid zones selected: ${invalidZones.join(', ')}` },
-          { status: 400 }
-        );
+      
+      for (const z of body.zones) {
+        if (!zoneNames.has(String(z).trim().toLowerCase())) {
+          try { await Zone.create({ name: String(z).trim(), isActive: true }); } catch (e) {}
+        }
       }
       admin.zones = body.zones;
     }
@@ -109,19 +108,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       admin.password = await bcrypt.hash(body.password, 12);
     }
 
-    // Update agent assignments if provided
+    // Update member assignments if provided
     if (Array.isArray(body.adminIds)) {
       const oldAgentIds = admin.adminIds || [];
       const newAgentIds = body.adminIds;
 
-      // Remove admin reference from old agents not in new list
+      // Remove admin reference from old members not in new list
       for (const oldAgentId of oldAgentIds) {
         if (!newAgentIds.includes(oldAgentId.toString())) {
           await User.findByIdAndUpdate(oldAgentId, { adminId: undefined });
         }
       }
 
-      // Add admin reference to new agents
+      // Add admin reference to new members
       for (const newAgentId of newAgentIds) {
         if (!oldAgentIds.some((id: any) => id.toString() === newAgentId)) {
           await User.findByIdAndUpdate(newAgentId, { adminId: admin._id });
@@ -143,13 +142,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         email: admin.email,
         phone: admin.phone,
         zones: admin.zones || [],
-        agents: admin.adminIds?.map((agent: any) => ({
-          id: agent._id,
-          name: agent.fullName,
-          email: agent.email,
-          phone: agent.phone,
-          username: agent.username,
-          zones: agent.zones || [],
+        members: admin.adminIds?.map((member: any) => ({
+          id: member._id,
+          name: member.fullName,
+          email: member.email,
+          phone: member.phone,
+          username: member.username,
+          zones: member.zones || [],
         })) || [],
       },
     });
@@ -162,8 +161,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can reset admin password' }, { status: 403 });
+    if (authUser.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Only Super Admin can reset admin password' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -193,8 +192,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can delete admins' }, { status: 403 });
+    if (authUser.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Only Super Admin can delete admins' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -205,7 +204,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: 'Admin not found' }, { status: 404 });
     }
 
-    // Remove admin reference from agents
+    // Remove admin reference from members
     if (admin.adminIds && admin.adminIds.length > 0) {
       await User.updateMany(
         { _id: { $in: admin.adminIds } },

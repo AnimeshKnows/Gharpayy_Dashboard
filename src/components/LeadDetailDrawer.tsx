@@ -36,9 +36,9 @@ const ACTION_ICONS: Record<string, typeof Activity> = {
 
 const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
   const updateLead = useUpdateLead();
-  const { data: agents } = useAgents();
+  const { data: members } = useAgents();
   const { user } = useAuth();
-  const canAssignLead = ['ceo', 'manager', 'admin'].includes(user?.role || '');
+  const canAssignLead = ['super_admin', 'manager', 'admin'].includes(user?.role || '');
   const { data: conversations } = useConversations(lead?.id);
   const { data: followUps } = useFollowUps(lead?.id);
   const { data: activityLog } = useActivityLog(lead?.id);
@@ -52,9 +52,9 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('');
 
   useEffect(() => {
-    setSelectedAgentId(lead?.assignedAgentId || '');
+    setSelectedAgentId(lead?.assignedMemberId || '');
     setSelectedStatus(lead?.status || '');
-  }, [lead?.id, lead?.assignedAgentId, lead?.status]);
+  }, [lead?.id, lead?.assignedMemberId, lead?.status]);
 
   const handleAiSummary = async () => {
     if (!lead) return;
@@ -65,7 +65,7 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          lead: { ...lead, agent_name: lead.agents?.name },
+          lead: { ...lead, agent_name: lead.members?.name },
           conversations: conversations?.slice(0, 5),
           visits: [],
           bookings: bookings?.map((b: any) => ({ property_name: b.properties?.name, booking_status: b.bookingStatus, monthly_rent: b.monthlyRent })),
@@ -85,6 +85,11 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
 
   const stage = PIPELINE_STAGES.find(s => s.key === lead.status);
   const score = lead.leadScore ?? 0;
+  const parsedMetadata = ((lead as any).parsedMetadata || {}) as Record<string, any>;
+  const parsedAreas: string[] = Array.isArray(parsedMetadata.areas) ? parsedMetadata.areas : [];
+  const parsedTechParks: string[] = Array.isArray(parsedMetadata.techParks) ? parsedMetadata.techParks : [];
+  const parsedMapLinks: string[] = Array.isArray(parsedMetadata.mapLinks) ? parsedMetadata.mapLinks : [];
+  const parsedExtraEntries = Object.entries((parsedMetadata.extraFields || {}) as Record<string, string>);
 
   const handleStatusChange = (status: string) => {
     setSelectedStatus(status);
@@ -103,8 +108,8 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
       hasChanges = true;
     }
 
-    if (canAssignLead && selectedAgentId !== lead.assignedAgentId) {
-      updates.assignedAgentId = selectedAgentId || null;
+    if (canAssignLead && selectedAgentId !== lead.assignedMemberId) {
+      updates.assignedMemberId = selectedAgentId || null;
       hasChanges = true;
     }
 
@@ -121,7 +126,7 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
     try {
       await createFollowUp.mutateAsync({
         leadId: lead.id,
-        agentId: lead.assignedAgentId,
+        agentId: lead.assignedMemberId,
         reminderDate: new Date(reminderDate).toISOString(),
         note: note || null,
       });
@@ -134,7 +139,7 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
   const formatAction = (action: string, metadata: any) => {
     switch (action) {
       case 'status_change': return `Status changed from ${(metadata.from || '').replace(/_/g, ' ')} to ${(metadata.to || '').replace(/_/g, ' ')}`;
-      case 'agent_reassigned': return 'Agent reassigned';
+      case 'agent_reassigned': return 'Member reassigned';
       case 'visit_scheduled': return `Visit scheduled for ${metadata.scheduled_at ? format(new Date(metadata.scheduled_at), 'MMM d, h:mm a') : 'TBD'}`;
       case 'visit_outcome': return `Visit outcome: ${metadata.outcome || 'unknown'}`;
       default: return action.replace(/_/g, ' ');
@@ -179,7 +184,7 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
               {lead.roomType ? <div className="flex items-center gap-2 text-xs text-foreground"><Home size={12} className="text-muted-foreground" /> Room: {lead.roomType}</div> : null}
               {lead.needPreference ? <div className="flex items-center gap-2 text-xs text-foreground"><Users size={12} className="text-muted-foreground" /> Need: {lead.needPreference}</div> : null}
               <div className="flex items-center gap-2 text-xs text-foreground"><Clock size={12} className="text-muted-foreground" /> {(lead as any).firstResponseTimeMin != null ? `${(lead as any).firstResponseTimeMin}m response` : 'No response yet'}</div>
-              <div className="flex items-center gap-2 text-xs text-foreground"><User size={12} className="text-muted-foreground" /> {(lead as any).agents?.name || 'Unassigned'}</div>
+              <div className="flex items-center gap-2 text-xs text-foreground"><User size={12} className="text-muted-foreground" /> {(lead as any).members?.name || 'Unassigned'}</div>
               {lead.specialRequests ? (
                 <div className="sm:col-span-2 rounded-lg bg-secondary/60 px-3 py-2 text-xs text-foreground flex items-start gap-2">
                   <StickyNote size={12} className="text-muted-foreground mt-0.5" />
@@ -190,6 +195,100 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
                 <div className="sm:col-span-2 rounded-lg bg-secondary/60 px-3 py-2 text-xs text-foreground flex items-start gap-2">
                   <StickyNote size={12} className="text-muted-foreground mt-0.5" />
                   <span><span className="font-medium">Notes:</span> {lead.notes}</span>
+                </div>
+              ) : null}
+
+              {(parsedAreas.length > 0 || parsedTechParks.length > 0 || parsedMapLinks.length > 0 || parsedMetadata.fullAddress || parsedMetadata.buildingName || parsedMetadata.sourceFormat || parsedMetadata.moveInUrgency || parsedMetadata.quality || parsedMetadata.inBLR !== undefined || parsedExtraEntries.length > 0) ? (
+                <div className="sm:col-span-2 rounded-lg bg-secondary/60 px-3 py-3 text-xs text-foreground space-y-2">
+                  <div className="text-[10px] font-semibold text-muted-foreground">Parsed Insights</div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {parsedMetadata.sourceFormat ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-border text-muted-foreground">
+                        Source: {parsedMetadata.sourceFormat}
+                      </span>
+                    ) : null}
+                    {parsedMetadata.zone ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-border text-muted-foreground">
+                        Zone: {parsedMetadata.zone}
+                      </span>
+                    ) : null}
+                    {parsedMetadata.moveInUrgency ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-border text-muted-foreground capitalize">
+                        Urgency: {parsedMetadata.moveInUrgency}
+                      </span>
+                    ) : null}
+                    {parsedMetadata.quality ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-border text-muted-foreground capitalize">
+                        Quality: {parsedMetadata.quality}
+                      </span>
+                    ) : null}
+                    {parsedMetadata.inBLR !== undefined && parsedMetadata.inBLR !== null ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-border text-muted-foreground">
+                        In BLR: {parsedMetadata.inBLR ? 'Yes' : 'No'}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {parsedAreas.length > 0 ? (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">Areas</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {parsedAreas.map((area, idx) => (
+                          <span key={`${area}-${idx}`} className="text-[10px] px-2 py-0.5 rounded border border-border text-foreground">
+                            {area}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {parsedTechParks.length > 0 ? (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-1">Tech Parks</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {parsedTechParks.map((park, idx) => (
+                          <span key={`${park}-${idx}`} className="text-[10px] px-2 py-0.5 rounded border border-border text-foreground">
+                            {park}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {parsedMetadata.fullAddress ? (
+                    <p className="text-[11px] text-foreground"><span className="text-muted-foreground">Address:</span> {parsedMetadata.fullAddress}</p>
+                  ) : null}
+                  {parsedMetadata.buildingName ? (
+                    <p className="text-[11px] text-foreground"><span className="text-muted-foreground">Building:</span> {parsedMetadata.buildingName}</p>
+                  ) : null}
+
+                  {parsedMapLinks.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {parsedMapLinks.slice(0, 3).map((url, idx) => (
+                        <a
+                          key={`${url}-${idx}`}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] px-2 py-0.5 rounded border border-border text-muted-foreground hover:text-foreground"
+                        >
+                          Map Link {idx + 1}
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {parsedExtraEntries.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {parsedExtraEntries.slice(0, 8).map(([k, v]) => (
+                        <div key={k} className="rounded border border-border px-2 py-1.5">
+                          <p className="text-[10px] text-muted-foreground capitalize">{k}</p>
+                          <p className="text-[11px] text-foreground break-words">{String(v)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -208,12 +307,12 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
 
             {canAssignLead ? (
               <div className="rounded-xl border border-border bg-card p-3">
-                <label className="text-[10px] font-medium text-muted-foreground mb-1.5 block">Assign Agent</label>
+                <label className="text-[10px] font-medium text-muted-foreground mb-1.5 block">Assign Member</label>
                 <div className="flex items-center gap-2">
                   <Select value={selectedAgentId || ''} onValueChange={handleAgentChange}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
-                      {agents?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                      {members?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -229,7 +328,7 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
               updateLead.isPending ||
               (
                 (selectedStatus || lead.status) === lead.status &&
-                (!canAssignLead || selectedAgentId === lead.assignedAgentId)
+                (!canAssignLead || selectedAgentId === lead.assignedMemberId)
               )
             }
           >
@@ -300,8 +399,8 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
                   <div>
                     <p className="font-medium text-foreground text-xs">{formatAction(entry.action, entry.metadata)}</p>
                     <p className="text-[10px] text-muted-foreground">{format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}</p>
-                    {(entry as any).agents?.name && (
-                      <p className="text-[10px] text-muted-foreground">by {(entry as any).agents.name}</p>
+                    {(entry as any).members?.name && (
+                      <p className="text-[10px] text-muted-foreground">by {(entry as any).members.name}</p>
                     )}
                   </div>
                 </div>
@@ -352,7 +451,7 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
               {conversations?.map(c => (
                 <div key={c.id} className={`p-3 rounded-lg text-xs ${c.direction === 'inbound' ? 'bg-secondary/50' : 'bg-primary/5 border border-primary/10'}`}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-foreground capitalize">{c.direction === 'inbound' ? lead.name : 'Agent'}</span>
+                    <span className="font-medium text-foreground capitalize">{c.direction === 'inbound' ? lead.name : 'Member'}</span>
                     <span className="text-[10px] text-muted-foreground">{format(new Date(c.createdAt), 'MMM d, h:mm a')}</span>
                   </div>
                   <p className="text-muted-foreground">{c.message}</p>

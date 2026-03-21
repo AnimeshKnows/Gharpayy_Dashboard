@@ -24,7 +24,7 @@ const BookingSchema: Schema = new Schema(
     moveInDate: { type: Date },
     bookingStatus: { type: String, enum: ['pending', 'confirmed', 'checked_in', 'cancelled'], default: 'pending' },
     paymentStatus: { type: String, enum: ['pending', 'partial', 'paid'], default: 'pending' },
-    bookedBy: { type: Schema.Types.ObjectId, ref: 'Agent', required: true },
+    bookedBy: { type: Schema.Types.ObjectId, ref: 'Member', required: true },
   },
   { timestamps: true }
 );

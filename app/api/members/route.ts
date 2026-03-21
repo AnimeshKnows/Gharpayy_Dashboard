@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
-import Agent from '@/models/Agent';
+import Member from '@/models/User';
 import User from '@/models/User';
 import bcrypt from 'bcryptjs';
 import Zone from '@/models/Zone';
@@ -13,15 +13,15 @@ export async function GET() {
 
     await connectToDatabase();
 
-    let agents;
-    if (authUser.role === 'ceo' || authUser.role === 'manager') {
-      // CEO and manager see all agents
-      agents = await User.find({ role: 'agent' })
+    let members;
+    if (['super_admin', 'manager', 'member'].includes(authUser.role)) {
+      // Super Admin, manager, and member see all members
+      members = await User.find({ role: 'member' })
         .select('-password')
         .populate('adminId', 'fullName email username')
         .sort({ fullName: 1 });
 
-      const transformed = agents.map((a) => ({
+      const transformed = members.map((a) => ({
         id: a._id,
         name: a.fullName,
         email: a.email,
@@ -35,13 +35,13 @@ export async function GET() {
       return NextResponse.json(transformed);
     }
 
-    // For admins, show only agents under them
+    // For admins, show only members under them
     if (authUser.role === 'admin') {
-      agents = await User.find({ adminId: authUser.id })
+      members = await User.find({ adminId: authUser.id })
         .select('-password')
         .sort({ fullName: 1 });
 
-      const transformed = agents.map((a) => ({
+      const transformed = members.map((a) => ({
         id: a._id,
         name: a.fullName,
         email: a.email,
@@ -55,9 +55,9 @@ export async function GET() {
       return NextResponse.json(transformed);
     }
 
-    // For agents and others, use legacy Agent collection if they still have access
+    // For members and others, use legacy Member collection if they still have access
     const query = authUser.zoneName ? { zoneName: authUser.zoneName } : {};
-    const legacyAgents = await Agent.find(query).sort({ name: 1 });
+    const legacyAgents = await Member.find(query).sort({ name: 1 });
     const transformed = legacyAgents.map((a) => ({
       ...a.toObject(),
       id: a._id,
@@ -73,8 +73,8 @@ export async function POST(req: Request) {
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (authUser.role !== 'ceo') {
-      return NextResponse.json({ error: 'Only CEO can add agents' }, { status: 403 });
+    if (authUser.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Only Super Admin can add members' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -93,18 +93,17 @@ export async function POST(req: Request) {
 
     const zoneDocs = await Zone.find({ isActive: true }).select('name');
     const zoneNames = new Set(zoneDocs.map((z: any) => String(z.name).trim().toLowerCase()));
-    const invalidZones = zones.filter((z: string) => !zoneNames.has(String(z).trim().toLowerCase()));
-    if (invalidZones.length > 0) {
-      return NextResponse.json(
-        { error: `Invalid zones selected: ${invalidZones.join(', ')}` },
-        { status: 400 }
-      );
+    
+    for (const z of zones) {
+      if (!zoneNames.has(String(z).trim().toLowerCase())) {
+        try { await Zone.create({ name: String(z).trim(), isActive: true }); } catch (e) {}
+      }
     }
 
     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
     if (existingUser) {
       return NextResponse.json(
-        { error: 'Agent already exists with this email/username' },
+        { error: 'Member already exists with this email/username' },
         { status: 400 }
       );
     }
@@ -126,13 +125,13 @@ export async function POST(req: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(body.password, 12);
-    const agent = await User.create({
+    const member = await User.create({
       username,
       email,
       phone: body.phone,
       password: hashedPassword,
       fullName: body.fullName,
-      role: 'agent',
+      role: 'member',
       zones,
       adminId: adminId || undefined,
       adminIds: [],
@@ -141,20 +140,20 @@ export async function POST(req: Request) {
     // Update admin's adminIds list
     if (adminId) {
       await User.findByIdAndUpdate(adminId, {
-        $push: { adminIds: agent._id }
+        $push: { adminIds: member._id }
       });
     }
 
     return NextResponse.json(
       {
-        id: agent._id,
-        name: agent.fullName,
-        email: agent.email,
-        phone: agent.phone,
-        username: agent.username,
-        zones: agent.zones || [],
-        adminId: agent.adminId,
-        message: 'Agent created successfully'
+        id: member._id,
+        name: member.fullName,
+        email: member.email,
+        phone: member.phone,
+        username: member.username,
+        zones: member.zones || [],
+        adminId: member.adminId,
+        message: 'Member created successfully'
       },
       { status: 201 }
     );

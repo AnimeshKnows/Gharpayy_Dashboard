@@ -30,18 +30,18 @@ const QuickAddLead = () => {
     name: '', phone: '', email: '', source: 'whatsapp' as string,
     budget: '', preferred_location: '', move_in_date: '', profession: '',
     room_type: '', need_preference: '', special_requests: '',
-    notes: '', assigned_agent_id: '',
+    notes: '', assigned_member_id: '',
   });
   const [duplicate, setDuplicate] = useState<{ isDuplicate: boolean; duplicateCount: number; id: string; name: string; status: string } | null>(null);
 
   const createLead = useCreateLead();
-  const { data: agents } = useAgents();
+  const { data: members } = useAgents();
 
   const reset = () => {
     setForm({
       name: '', phone: '', email: '', source: 'whatsapp', budget: '', preferred_location: '',
       move_in_date: '', profession: '', room_type: '', need_preference: '', special_requests: '',
-      notes: '', assigned_agent_id: ''
+      notes: '', assigned_member_id: ''
     });
     setDuplicate(null);
     setRawText('');
@@ -85,9 +85,9 @@ const QuickAddLead = () => {
   }, []);
 
   const getAutoAgent = () => {
-    if (!agents || agents.length === 0) return null;
-    if (form.assigned_agent_id) return form.assigned_agent_id;
-    return (agents[0] as any)?.id || null;
+    if (!members || members.length === 0) return null;
+    if (form.assigned_member_id) return form.assigned_member_id;
+    return (members[0] as any)?.id || null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,7 +113,7 @@ const QuickAddLead = () => {
         needPreference: (mode === 'smart' ? (parsed?.need_preference || form.need_preference) : form.need_preference).trim() || null,
         specialRequests: (mode === 'smart' ? (parsed?.special_requests || form.special_requests) : form.special_requests).trim() || null,
         notes: (mode === 'smart' ? (parsed?.notes || form.notes) : form.notes).trim() || null,
-        assignedAgentId: getAutoAgent(),
+        assignedMemberId: getAutoAgent(),
         status: 'new',
       });
       toast.success('Lead created!');
@@ -251,7 +251,7 @@ const QuickAddLead = () => {
                     </div>
                   )}
 
-                  {/* Source & Agent */}
+                  {/* Source & Member */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Source</Label>
@@ -265,11 +265,11 @@ const QuickAddLead = () => {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Agent</Label>
-                      <Select value={form.assigned_agent_id} onValueChange={v => setForm(f => ({ ...f, assigned_agent_id: v }))}>
+                      <Label className="text-xs">Member</Label>
+                      <Select value={form.assigned_member_id} onValueChange={v => setForm(f => ({ ...f, assigned_member_id: v }))}>
                         <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Auto-assign" /></SelectTrigger>
                         <SelectContent>
-                          {agents?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                          {members?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
@@ -384,11 +384,11 @@ const QuickAddLead = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-xs">Agent</Label>
-                      <Select value={form.assigned_agent_id} onValueChange={v => setForm(f => ({ ...f, assigned_agent_id: v }))}>
+                      <Label className="text-xs">Member</Label>
+                      <Select value={form.assigned_member_id} onValueChange={v => setForm(f => ({ ...f, assigned_member_id: v }))}>
                         <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Auto-assign" /></SelectTrigger>
                         <SelectContent>
-                          {agents?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                          {members?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>

@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!['ceo', 'manager', 'admin'].includes(authUser.role)) {
+    if (!['super_admin', 'manager', 'admin', 'member'].includes(authUser.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const transformedLeads = leads.map(l => ({
       ...l,
       preferredLocation: l.preferred_location || l.preferredLocation,
-      assignedAgentId: l.assigned_agent_id || l.assignedAgentId,
+      assignedMemberId: l.assigned_member_id || l.assignedMemberId,
       firstResponseTimeMin: l.first_response_time_min || l.firstResponseTimeMin,
     }));
 
@@ -36,7 +36,7 @@ export async function PATCH(req: Request) {
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!['ceo', 'manager', 'admin'].includes(authUser.role)) {
+    if (!['super_admin', 'manager', 'admin', 'member'].includes(authUser.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -47,18 +47,21 @@ export async function PATCH(req: Request) {
     
     // Map snake_case updates to camelCase for MongoDB
     const mappedUpdates: any = { ...updates };
-    if (updates.assigned_agent_id) mappedUpdates.assignedAgentId = updates.assigned_agent_id;
+    if (updates.assigned_member_id !== undefined) {
+      mappedUpdates.assignedMemberId = updates.assigned_member_id === 'unassigned' ? null : updates.assigned_member_id;
+      delete mappedUpdates.assigned_member_id;
+    }
     if (updates.preferred_location) mappedUpdates.preferredLocation = updates.preferred_location;
 
     // Assignment permission checks
-    if (mappedUpdates.assignedAgentId !== undefined) {
-      const agent = await User.findOne({ _id: mappedUpdates.assignedAgentId, role: 'agent' }).select('_id adminId');
-      if (!agent) {
-        return NextResponse.json({ error: 'Selected agent not found' }, { status: 400 });
+    if (mappedUpdates.assignedMemberId) {
+      const member = await User.findOne({ _id: mappedUpdates.assignedMemberId, role: 'member' }).select('_id adminId');
+      if (!member) {
+        return NextResponse.json({ error: 'Selected member not found' }, { status: 400 });
       }
-      if (authUser.role === 'admin' && String(agent.adminId || '') !== String(authUser.id)) {
+      if (authUser.role === 'admin' && String(member.adminId || '') !== String(authUser.id)) {
         return NextResponse.json(
-          { error: 'Admins can assign leads only to agents under them' },
+          { error: 'Admins can assign leads only to members under them' },
           { status: 403 }
         );
       }
@@ -78,7 +81,7 @@ export async function DELETE(req: Request) {
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!['ceo', 'manager', 'admin'].includes(authUser.role)) {
+    if (!['super_admin', 'manager', 'admin', 'member'].includes(authUser.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

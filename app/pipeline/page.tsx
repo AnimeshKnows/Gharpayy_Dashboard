@@ -34,7 +34,7 @@ function DraggableCard({ lead, onClick }: { lead: LeadWithRelations; onClick: ()
       <LeadCard lead={{
         id: lead.id, name: lead.name, phone: lead.phone,
         source: lead.source as any, status: lead.status as any,
-        assignedAgent: lead.agents?.name || 'Unassigned',
+        assignedAgent: lead.members?.name || 'Unassigned',
         createdAt: lead.createdAt, lastActivity: lead.lastActivityAt,
         firstResponseTime: lead.firstResponseTimeMin ?? undefined,
         budget: lead.budget ?? undefined, preferredLocation: lead.preferredLocation ?? undefined,
@@ -159,7 +159,7 @@ const Pipeline = () => {
               <LeadCard lead={{
                 id: activeLead.id, name: activeLead.name, phone: activeLead.phone,
                 source: activeLead.source as any, status: activeLead.status as any,
-                assignedAgent: activeLead.agents?.name || 'Unassigned',
+                assignedAgent: activeLead.members?.name || 'Unassigned',
                 createdAt: activeLead.createdAt, lastActivity: activeLead.lastActivityAt,
                 firstResponseTime: activeLead.firstResponseTimeMin ?? undefined,
                 budget: activeLead.budget ?? undefined, preferredLocation: activeLead.preferredLocation ?? undefined,

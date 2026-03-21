@@ -3,7 +3,7 @@ import connectToDatabase from '@/lib/mongodb';
 import Visit from '@/models/Visit';
 import Lead from '@/models/Lead';
 import Property from '@/models/Property';
-import Agent from '@/models/Agent';
+import Member from '@/models/User';
 
 export async function GET() {
   try {
@@ -20,7 +20,7 @@ export async function GET() {
       id: v._id,
       leads: v.leadId,
       properties: v.propertyId,
-      agents: v.assignedStaffId
+      members: v.assignedStaffId
     }));
 
     return NextResponse.json(transformedVisits);

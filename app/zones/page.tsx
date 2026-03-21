@@ -20,7 +20,7 @@ const ZONE_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06
 
 const ZoneManagement = () => {
   const { data: zones, isLoading } = useZones();
-  const { data: agents } = useAgents();
+  const { data: members } = useAgents();
   const { data: queues } = useTeamQueues();
   const { data: escalations } = useEscalations('open');
   const createZone = useCreateZone();
@@ -253,7 +253,7 @@ const ZoneManagement = () => {
                   <Input placeholder="Team name (e.g. Marathahalli Sales)" value={newQueue.team_name} onChange={e => setNewQueue({ ...newQueue, team_name: e.target.value })} className="text-xs" />
                   <Select value={newQueue.owner_agent_id} onValueChange={v => setNewQueue({ ...newQueue, owner_agent_id: v })}>
                     <SelectTrigger className="text-xs"><SelectValue placeholder="Queue Owner (optional)" /></SelectTrigger>
-                    <SelectContent>{agents?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>{members?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
                   </Select>
                   <Button className="w-full text-xs" onClick={handleCreateQueue} disabled={createQueue.isPending}>
                     {createQueue.isPending ? 'Creating...' : 'Create Queue'}
@@ -279,9 +279,9 @@ const ZoneManagement = () => {
                   <tr key={q.id} className="border-b border-border last:border-0 hover:bg-secondary/20 transition-colors">
                     <td className="px-4 py-3.5 font-medium text-foreground">{q.team_name}</td>
                     <td className="px-4 py-3.5 text-muted-foreground">{q.zones?.name}</td>
-                    <td className="px-4 py-3.5 text-muted-foreground">{q.agents?.name || '—'}</td>
+                    <td className="px-4 py-3.5 text-muted-foreground">{q.members?.name || '—'}</td>
                     <td className="px-4 py-3.5"><Badge variant="outline" className="text-[9px]">{q.dispatch_rule}</Badge></td>
-                    <td className="px-4 py-3.5 text-muted-foreground">{(q.member_ids || []).length} agents</td>
+                    <td className="px-4 py-3.5 text-muted-foreground">{(q.member_ids || []).length} members</td>
                   </tr>
                 ))}
                 {queues?.length === 0 && <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">No queues yet</td></tr>}

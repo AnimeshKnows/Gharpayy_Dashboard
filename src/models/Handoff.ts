@@ -13,8 +13,8 @@ export interface IHandoff extends Document {
 const HandoffSchema: Schema = new Schema(
   {
     leadId: { type: Schema.Types.ObjectId, ref: 'Lead', required: true },
-    fromAgentId: { type: Schema.Types.ObjectId, ref: 'Agent' },
-    toAgentId: { type: Schema.Types.ObjectId, ref: 'Agent' },
+    fromAgentId: { type: Schema.Types.ObjectId, ref: 'Member' },
+    toAgentId: { type: Schema.Types.ObjectId, ref: 'Member' },
     zoneId: { type: Schema.Types.ObjectId, ref: 'Zone' },
     reason: { type: String },
   },

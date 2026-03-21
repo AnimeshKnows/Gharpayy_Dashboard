@@ -7,7 +7,7 @@ export interface ILead extends Document {
   status: 'new' | 'contacted' | 'qualified' | 'visit_scheduled' | 'visit_completed' | 'negotiation' | 'booked' | 'lost';
   source: string;
   firstResponseTimeMin?: number;
-  assignedAgentId?: mongoose.Types.ObjectId;
+  assignedMemberId?: mongoose.Types.ObjectId;
   propertyId?: mongoose.Types.ObjectId;
   preferredLocation?: string;
   budget?: string;
@@ -17,6 +17,7 @@ export interface ILead extends Document {
   needPreference?: string;
   specialRequests?: string;
   notes?: string;
+  parsedMetadata?: Record<string, any>;
   leadScore: number;
   createdAt: Date;
   updatedAt: Date;
@@ -34,7 +35,7 @@ const LeadSchema: Schema = new Schema(
     },
     source: { type: String, required: true },
     firstResponseTimeMin: { type: Number },
-    assignedAgentId: { type: Schema.Types.ObjectId, ref: 'User' },
+    assignedMemberId: { type: Schema.Types.ObjectId, ref: 'User' },
     propertyId: { type: Schema.Types.ObjectId, ref: 'Property' },
     preferredLocation: { type: String },
     budget: { type: String },
@@ -44,6 +45,7 @@ const LeadSchema: Schema = new Schema(
     needPreference: { type: String },
     specialRequests: { type: String },
     notes: { type: String },
+    parsedMetadata: { type: Schema.Types.Mixed },
     leadScore: { type: Number, default: 0 },
   },
   { timestamps: true }

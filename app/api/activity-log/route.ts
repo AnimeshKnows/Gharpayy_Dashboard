@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     const transformedLogs = logs.map(l => ({
       ...l.toObject(),
       id: l._id,
-      agents: l.agentId
+      members: l.agentId
     }));
 
     return NextResponse.json(transformedLogs);

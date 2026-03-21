@@ -94,7 +94,7 @@ const Visits = () => {
               </div>
               <div className="flex items-center justify-between text-2xs text-muted-foreground mb-4">
                 <span className="flex items-center gap-1"><Clock size={10} /> {format(new Date(visit.scheduledAt), 'MMM d, h:mm a')}</span>
-                <span className="flex items-center gap-1"><User size={10} /> {(visit.agents as any)?.name?.split(' ')[0] || 'TBD'}</span>
+                <span className="flex items-center gap-1"><User size={10} /> {(visit.members as any)?.name?.split(' ')[0] || 'TBD'}</span>
               </div>
               <div className="border-t border-border pt-3">
                 <Select onValueChange={v => handleOutcome(visit.id, v)}>
@@ -131,7 +131,7 @@ const Visits = () => {
                   <td className="px-4 py-3.5 font-medium text-foreground">{(visit.leads as any)?.name}</td>
                   <td className="px-4 py-3.5 text-2xs text-muted-foreground">{(visit.properties as any)?.name}</td>
                   <td className="px-4 py-3.5 text-2xs text-muted-foreground">{format(new Date(visit.scheduledAt), 'MMM d, h:mm a')}</td>
-                  <td className="px-4 py-3.5 text-2xs text-muted-foreground">{(visit.agents as any)?.name}</td>
+                  <td className="px-4 py-3.5 text-2xs text-muted-foreground">{(visit.members as any)?.name}</td>
                   <td className="px-4 py-3.5">
                     <span className="flex items-center gap-1 text-2xs capitalize">
                       {visit.outcome && outcomeIcons[visit.outcome]}

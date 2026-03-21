@@ -43,7 +43,7 @@ const Analytics = () => {
     };
   }).filter(s => s.leads > 0);
 
-  // 3. Agent Leaderboard
+  // 3. Member Leaderboard
   const leaderboard = [...(agentStats || [])].sort((a, b) => {
     const rateA = a.totalLeads ? a.conversions / a.totalLeads : 0;
     const rateB = b.totalLeads ? b.conversions / b.totalLeads : 0;
@@ -132,36 +132,36 @@ const Analytics = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Agent Leaderboard */}
+        {/* Member Leaderboard */}
         <motion.div className="kpi-card" {...anim(0.15)}>
           <h3 className="font-display font-semibold text-xs text-foreground mb-5 flex items-center gap-2">
-            <Trophy size={14} className="text-accent" /> Agent Leaderboard
+            <Trophy size={14} className="text-accent" /> Member Leaderboard
           </h3>
           <div className="space-y-2">
-            {leaderboard.map((agent, i) => {
-              const rate = agent.totalLeads ? Math.round((agent.conversions / agent.totalLeads) * 100) : 0;
+            {leaderboard.map((member, i) => {
+              const rate = member.totalLeads ? Math.round((member.conversions / member.totalLeads) * 100) : 0;
               return (
-                <div key={agent.id} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
+                <div key={member.id} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
                   <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                     i === 0 ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'
                   }`}>
                     {i + 1}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-foreground">{agent.name}</p>
+                    <p className="text-xs font-medium text-foreground">{member.name}</p>
                     <div className="flex gap-3 mt-0.5">
-                      <span className="text-[10px] text-muted-foreground">{agent.activeLeads} active</span>
-                      <span className="text-[10px] text-muted-foreground">{agent.avgResponseTime}m avg</span>
+                      <span className="text-[10px] text-muted-foreground">{member.activeLeads} active</span>
+                      <span className="text-[10px] text-muted-foreground">{member.avgResponseTime}m avg</span>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-display font-bold text-foreground">{rate}%</p>
-                    <p className="text-[9px] text-muted-foreground">{agent.conversions}/{agent.totalLeads}</p>
+                    <p className="text-[9px] text-muted-foreground">{member.conversions}/{member.totalLeads}</p>
                   </div>
                 </div>
               );
             })}
-            {leaderboard.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">No agent data</p>}
+            {leaderboard.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">No member data</p>}
           </div>
         </motion.div>
 
