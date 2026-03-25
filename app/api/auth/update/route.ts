@@ -24,8 +24,15 @@ export async function PATCH(req: Request) {
     const updates: any = {};
     if (fullName) updates.fullName = fullName;
     if (password) {
+      if (String(password).length < 6) {
+        return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+      }
       const salt = await bcrypt.genSalt(10);
       updates.password = await bcrypt.hash(password, salt);
+    }
+
+    if (!updates.fullName && !updates.password) {
+      return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
     }
 
     const user = await User.findByIdAndUpdate(decoded.userId, updates, { new: true }).select('-password');

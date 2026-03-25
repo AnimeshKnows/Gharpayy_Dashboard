@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import AddLeadDialog from '@/components/AddLeadDialog';
-import { useLeadsPaginated } from '@/hooks/useCrmData';
+import { useLeadsPaginated, useOfficeZones } from '@/hooks/useCrmData';
 import { useBulkUpdateLeads, useDeleteLeads } from '@/hooks/useLeadDetails';
 import { useUpdateLead, useAgents, type LeadWithRelations } from '@/hooks/useCrmData';
 import { PIPELINE_STAGES, SOURCE_LABELS } from '@/types/crm';
@@ -16,15 +16,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { T, ZONES, QUALITY, GEO_TECH_PARKS, FDISPLAY, detectAllZones } from '@/lib/leadGeoData';
+import { T, QUALITY, GEO_TECH_PARKS, FDISPLAY } from '@/lib/leadGeoData';
 import { parseMoveInV2, parseBudgetV2 } from '@/lib/leadParserV2';
 import { Pill, ZonePill, TechPill, UrgencyBadge, SourceBadge, BLRBadge, BudgetChips, GeoIntelPanel } from '@/components/LeadUIAtoms';
 
 // ─── helpers to map DB lead → card display ────────────────────────
 function mapLeadMeta(lead: LeadWithRelations) {
   const meta = lead.parsedMetadata || {} as any;
-  const zones = meta.zones?.length ? meta.zones : (meta.zone ? [meta.zone] : detectAllZones(lead.preferredLocation || ''));
-  const zone = zones[0] || '';
+  // Show ASSIGNED zone only
+  const zone = (lead as any).zone || meta.zone || '';
+  const zones = zone ? [zone] : [];
   const techParks: string[] = meta.techParks || [];
   const moveInParsed = meta.moveInUrgency ? { urgency: meta.moveInUrgency, label: lead.moveInDate || meta.moveInRaw || '', urgencyDays: meta.moveInUrgencyDays ?? 999 } : (lead.moveInDate ? parseMoveInV2(lead.moveInDate) : null);
   const budgetRanges = meta.budgetRanges || (lead.budget ? parseBudgetV2(lead.budget).ranges : []);
@@ -57,7 +58,7 @@ const Leads = () => {
   const [filterSource, setFilterSource] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterDuplicate, setFilterDuplicate] = useState<string>('all');
-  const [filterAgent, setFilterAgent] = useState<string>('all');
+  const [filterZone, setFilterZone] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('newest');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -69,6 +70,7 @@ const Leads = () => {
   const totalLeads = paginatedData?.total ?? 0;
   const totalPages = Math.ceil(totalLeads / PAGE_SIZE);
   const { data: members } = useAgents();
+  const { data: officeZones } = useOfficeZones();
   const bulkUpdate = useBulkUpdateLeads();
   const deleteLeads = useDeleteLeads();
   const updateLead = useUpdateLead();
@@ -92,8 +94,7 @@ const Leads = () => {
       if (filterStatus !== 'all' && l.status !== filterStatus) return false;
       if (filterDuplicate === 'duplicate' && !l.isDuplicate) return false;
       if (filterDuplicate === 'unique' && l.isDuplicate) return false;
-      if (filterAgent === 'unassigned' && l.assignedMemberId) return false;
-      if (filterAgent !== 'all' && filterAgent !== 'unassigned' && l.assignedMemberId !== filterAgent) return false;
+      if (filterZone !== 'all' && (l as any).zone !== filterZone) return false;
       return true;
     })
     .sort((a, b) => {
@@ -176,7 +177,7 @@ const Leads = () => {
         <div className="flex items-center justify-between">
           <Button variant="outline" size="sm" onClick={() => setShowFiltersMobile(!showFiltersMobile)} className="ml-1.5 md:ml-0 gap-2 h-8 text-xs rounded-xl md:hidden">
             <Filter size={14} /> Filters
-            {(!showFiltersMobile && (filterSource !== 'all' || filterStatus !== 'all' || sortBy !== 'newest' || filterDuplicate !== 'all' || filterAgent !== 'all')) && <div className="w-1.5 h-1.5 rounded-full bg-accent" />}
+            {(!showFiltersMobile && (filterSource !== 'all' || filterStatus !== 'all' || sortBy !== 'newest' || filterDuplicate !== 'all' || filterZone !== 'all')) && <div className="w-1.5 h-1.5 rounded-full bg-accent" />}
           </Button>
 
           {/* Desktop Filters */}
@@ -201,10 +202,9 @@ const Leads = () => {
               <option value="unique">Unique Only</option>
               <option value="duplicate">Duplicates Only</option>
             </select>
-            <select value={filterAgent} onChange={e => setFilterAgent(e.target.value)} className="shrink-0 text-2xs bg-card border border-border rounded-xl px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring/30">
-              <option value="all">All Members</option>
-              <option value="unassigned">Unassigned</option>
-              {user?.id && <option value={user.id}>Assigned to Me</option>}
+            <select value={filterZone} onChange={e => setFilterZone(e.target.value)} className="shrink-0 text-2xs bg-card border border-border rounded-xl px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring/30">
+              <option value="all">All Zones</option>
+              {officeZones?.map(z => <option key={z._id} value={z.name}>{z.name}</option>)}
             </select>
             <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="shrink-0 text-2xs bg-card border border-border rounded-xl px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring/30">
               <option value="newest">Newest First</option>
@@ -239,10 +239,9 @@ const Leads = () => {
               <option value="unique">Unique Only</option>
               <option value="duplicate">Duplicates Only</option>
             </select>
-            <select value={filterAgent} onChange={e => setFilterAgent(e.target.value)} className="w-full text-xs bg-card border border-border rounded-lg px-3 py-2 text-foreground outline-none">
-              <option value="all">All Members</option>
-              <option value="unassigned">Unassigned</option>
-              {user?.id && <option value={user.id}>Assigned to Me</option>}
+            <select value={filterZone} onChange={e => setFilterZone(e.target.value)} className="w-full text-xs bg-card border border-border rounded-lg px-3 py-2 text-foreground outline-none">
+              <option value="all">All Zones</option>
+              {officeZones?.map(z => <option key={z._id} value={z.name}>{z.name}</option>)}
             </select>
             <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="w-full text-xs bg-card border border-border rounded-lg px-3 py-2 text-foreground outline-none">
               <option value="newest">Newest First</option>
@@ -303,7 +302,8 @@ const Leads = () => {
           const m = mapLeadMeta(lead);
           const exp = expandedId === lead.id;
           const sBadge = statusBadgeConfig[lead.status] || statusBadgeConfig.new;
-          const created = new Date(lead.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+          const createdDate = new Date(lead.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+          const createdTime = new Date(lead.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
           const hue = lead.name ? lead.name.charCodeAt(0) * 7 % 360 : 200;
 
           return (
@@ -353,7 +353,11 @@ const Leads = () => {
                     <span className="lead-badge" style={{ fontSize: 10, padding: '2px 8px', borderRadius: 5, background: sBadge.bg, color: sBadge.color, border: `1px solid ${sBadge.border}`, fontWeight: 600 }}>
                       {PIPELINE_STAGES.find(s => s.key === lead.status)?.label || lead.status}
                     </span>
-                    {lead.members?.name && <span className="lead-badge" style={{ fontSize: 11, color: T.hi, fontWeight: 600 }}>👤 {lead.members.name}</span>}
+                    {lead.members?.name && (
+                      <div className="lead-badge" style={{ height: 'max-content', display: 'flex', alignItems: 'center', gap: 4, background: T.bg2, border: `1px solid ${T.line}`, padding: '1px 3px 1px 6px', borderRadius: 5 }}>
+                        <span style={{ fontSize: 11, color: T.hi, fontWeight: 600 }}>👤 {lead.members.name}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Row 2: Location + budget chips */}
@@ -379,7 +383,7 @@ const Leads = () => {
                     {m.type && m.type !== 'U' && <Pill text={m.type} />}
                     {m.room && m.room !== 'U' && <Pill text={m.room} />}
                     {m.need && m.need.split(/\s*\/\s*/).filter(Boolean).map((n: string) => <Pill key={n} text={n.trim()} />)}
-                    {m.inBLR !== undefined && m.inBLR !== null && <span style={{ fontSize: 9.5, padding: '2px 8px', borderRadius: 5, background: 'rgba(56,189,248,0.1)', color: '#0ea5e9', border: '1px solid rgba(56,189,248,0.2)', fontWeight: 600 }}>{m.inBLR ? '🏙 In BLR' : '✈️ Out BLR'}</span>}
+                    {m.inBLR !== undefined && <span style={{ fontSize: 9.5, padding: '2px 8px', borderRadius: 5, background: m.inBLR === null ? 'rgba(107,114,128,0.1)' : m.inBLR ? 'rgba(99,102,241,0.1)' : 'rgba(245,158,11,0.1)', color: m.inBLR === null ? '#9ca3af' : m.inBLR ? '#818cf8' : '#fbbf24', border: m.inBLR === null ? '1px solid rgba(107,114,128,0.2)' : m.inBLR ? '1px solid rgba(99,102,241,0.2)' : '1px solid rgba(245,158,11,0.2)', fontWeight: 600 }}>{m.inBLR === null ? '❓ Unknown' : (m.inBLR ? '🏙 In BLR' : '✈️ Out BLR')}</span>}
                     {m.quality && <span style={{ fontSize: 9.5, padding: '2px 8px', borderRadius: 5, background: 'rgba(234,179,8,0.1)', color: '#ca8a04', border: '1px solid rgba(234,179,8,0.2)', fontWeight: 600, textTransform: 'capitalize' }}>{m.quality}</span>}
                   </div>
 
@@ -389,7 +393,11 @@ const Leads = () => {
                 {/* Right side: date + actions */}
                 <div className="lead-right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
                   <span style={{ fontSize: 9.5, fontWeight: 700, color: T.dim, fontFamily: T.mono, opacity: 0.8 }}>L-{lead.id.slice(-6).toUpperCase()}</span>
-                  <span className="lead-date" style={{ fontSize: 9.5, color: T.dim, fontFamily: T.mono }}>{created}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                    <span className="lead-date" style={{ fontSize: 9.5, color: T.dim, fontFamily: T.mono }}>{createdDate}</span>
+                    <span style={{ fontSize: 8.5, color: T.dim, fontFamily: T.mono, opacity: 0.8 }}>{createdTime}</span>
+                  </div>
+                  {lead.creator?.name && <span style={{ fontSize: 8.5, color: T.dim, fontStyle: 'italic', letterSpacing: '0.04em', marginTop: -2, marginBottom: 2 }}>(Added by {lead.creator.name})</span>}
                   <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 4 }}>
                     <a href={`tel:${lead.phone}`} style={{ padding: 5, borderRadius: 6, background: T.bg2, border: `1px solid ${T.line}`, display: 'flex' }} title="Call">
                       <PhoneCall size={12} color={T.mid} />
@@ -422,7 +430,7 @@ const Leads = () => {
                       { label: 'Member', icon: '🧑‍💼', value: lead.members?.name },
                       { label: 'Score', icon: '⭐', value: lead.leadScore ? String(lead.leadScore) : '' },
                       { label: 'Quality', icon: '🎯', value: m.quality },
-                      { label: 'In BLR?', icon: '🌆', value: m.inBLR !== undefined && m.inBLR !== null ? (m.inBLR ? 'Yes' : 'No') : '' },
+                      { label: 'In BLR?', icon: '🌆', value: m.inBLR !== undefined ? (m.inBLR === null ? 'Unknown' : (m.inBLR ? 'Yes' : 'No')) : '' },
                       { label: 'Notes', icon: '📝', value: lead.notes },
                     ].filter(f => f.value).map(f => (
                       <div key={f.label} style={{ background: T.bg2, borderRadius: 8, padding: '8px 10px', border: `1px solid ${T.line}` }}>

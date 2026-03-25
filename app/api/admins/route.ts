@@ -16,7 +16,7 @@ export async function GET() {
 
     await connectToDatabase();
 
-    const query = authUser.role === 'manager' ? { role: 'admin', managerId: authUser.id } : { role: 'admin' };
+    const query = { role: 'admin' };
     const admins = await User.find(query)
       .select('-password')
       .populate('adminIds', '-password')

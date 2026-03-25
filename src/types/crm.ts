@@ -6,6 +6,7 @@ export interface Lead {
   source: LeadSource;
   status: PipelineStage;
   assignedAgent: string;
+  zone?: string;
   createdAt: string;
   lastActivity: string;
   firstResponseTime?: number; // in minutes

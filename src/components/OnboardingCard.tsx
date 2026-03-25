@@ -1,17 +1,15 @@
-import { useAgents, useLeads, useProperties } from '@/hooks/useCrmData';
-import { Users, Building2, UserPlus, CheckCircle, ArrowRight } from 'lucide-react';
+import { useAgents, useLeads } from '@/hooks/useCrmData';
+import { Users, UserPlus, CheckCircle, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 
 const OnboardingCard = () => {
   const { data: members } = useAgents();
   const { data: leads } = useLeads();
-  const { data: properties } = useProperties();
   const router = useRouter();
 
   const steps = [
     { label: 'Add your first member', done: (members?.length || 0) > 0, icon: Users, path: '/settings' },
-    { label: 'Add a property', done: (properties?.length || 0) > 0, icon: Building2, path: '/settings' },
     { label: 'Create your first lead', done: (leads?.length || 0) > 0, icon: UserPlus, path: '/leads' },
   ];
 
@@ -30,10 +28,10 @@ const OnboardingCard = () => {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="font-display font-bold text-sm text-foreground">Welcome! Let's set up your CRM</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">{completed}/3 steps completed</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{completed}/2 steps completed</p>
         </div>
         <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
-          <span className="text-sm font-bold text-accent font-display">{completed}/3</span>
+          <span className="text-sm font-bold text-accent font-display">{completed}/2</span>
         </div>
       </div>
 
@@ -42,7 +40,7 @@ const OnboardingCard = () => {
         <motion.div
           className="h-full bg-accent rounded-full"
           initial={{ width: 0 }}
-          animate={{ width: `${(completed / 3) * 100}%` }}
+          animate={{ width: `${(completed / 2) * 100}%` }}
           transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
         />
       </div>

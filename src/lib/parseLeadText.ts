@@ -53,44 +53,6 @@ type MoveInParsed = {
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 const MONTHS_LONG = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'] as const;
 
-const ZONES = [
-  {
-    zone: 'South',
-    keywords: [
-      'koramangala', 'kormangala', 'btm', 'jayanagar', 'jp nagar', 'hsr', 'banashankari', 'basavanagudi',
-      'electronic city', 'sg palya', 'sgpalya', 'silk board', 'agara', 'madiwala', 'bannerghatta', 'hosur road'
-    ],
-  },
-  {
-    zone: 'East',
-    keywords: [
-      'whitefield', 'itpl', 'kundalahalli', 'brookfield', 'hoodi', 'varthur', 'kr puram', 'bellandur',
-      'sarjapur', 'ecospace', 'ecoworld', 'embassy tech village', 'indiranagar', 'domlur', 'ejipura',
-      'cv raman nagar', 'old airport road', 'marathahalli', 'mahadevapura', 'bagmane', 'kadubeesanahalli'
-    ],
-  },
-  {
-    zone: 'North',
-    keywords: [
-      'yelahanka', 'hebbal', 'manyata', 'nagawara', 'thanisandra', 'jakkur', 'banaswadi', 'rt nagar',
-      'devanahalli', 'hennur', 'peenya', 'kempegowda airport'
-    ],
-  },
-  {
-    zone: 'West',
-    keywords: [
-      'rajajinagar', 'vijayanagar', 'yeshwanthpur', 'nagarbhavi', 'malleswaram', 'kengeri', 'rr nagar', 'mysore road'
-    ],
-  },
-  {
-    zone: 'Central',
-    keywords: [
-      'mg road', 'brigade road', 'richmond', 'shantinagar', 'ashok nagar', 'majestic', 'frazer town',
-      'cubbon park', 'ub city', 'trinity', 'halasuru', 'church street', 'richmond town', 'cox town'
-    ],
-  },
-] as const;
-
 const TECH_PARKS = [
   { name: 'Manyata Tech Park', keywords: ['manyata tech', 'manyata', 'manyatha'] },
   { name: 'Embassy Tech Village', keywords: ['embassy tech village', 'etv'] },
@@ -233,12 +195,8 @@ function extractLocations(raw: string): { areas: string[]; mapLinks: string[]; b
 }
 
 function detectAllZones(raw: string): string[] {
-  const t = raw.toLowerCase();
-  const found: string[] = [];
-  for (const z of ZONES) {
-    if (z.keywords.some(k => t.includes(k))) found.push(z.zone);
-  }
-  return unique(found);
+  // Zone auto-detection removed - zones must be explicitly selected
+  return [];
 }
 
 function detectTechParks(raw: string): string[] {

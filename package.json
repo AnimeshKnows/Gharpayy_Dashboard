@@ -61,6 +61,7 @@
     "mongoose": "^9.3.0",
     "next": "^16.1.6",
     "next-themes": "^0.3.0",
+    "nodemailer": "^8.0.3",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -79,6 +80,7 @@
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",
     "@types/node": "^22.16.5",
+    "@types/nodemailer": "^7.0.11",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "autoprefixer": "^10.4.21",
@@ -94,4 +96,3 @@
     "vitest": "^3.2.4"
   }
 }
-

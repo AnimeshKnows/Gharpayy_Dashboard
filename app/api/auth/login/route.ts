@@ -25,11 +25,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
+    // Check user status
+    const userStatus = user.status || 'active';
+    if (userStatus === 'inactive') {
+      return NextResponse.json({ error: 'Your account has been deactivated. Please contact your administrator.' }, { status: 403 });
+    }
+    if (userStatus === 'deleted') {
+      return NextResponse.json({ error: 'Your account has been deleted. Please contact your administrator.' }, { status: 403 });
+    }
+
     // All users authenticate with hashed DB password
     const isValidPassword = await bcrypt.compare(String(password), String(user.password));
 
     if (!isValidPassword) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    // If user is invited, activate on first successful login
+    if (userStatus === 'invited') {
+      user.status = 'active';
+      await user.save();
     }
 
     await issueAuthCookie({
@@ -67,3 +82,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
+

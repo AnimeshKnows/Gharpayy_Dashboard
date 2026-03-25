@@ -184,7 +184,7 @@ export const ZONES: ZoneEntry[] = [
 export const QUALITY: Record<string, { label: string; color: string; bg: string; border: string; stripe: string }> = {
   hot: { label: "🔥 Hot", color: "#f87171", bg: "rgba(248,113,113,0.13)", border: "rgba(248,113,113,0.4)", stripe: "#f87171" },
   good: { label: "✅ Good", color: "#34d399", bg: "rgba(52,211,153,0.12)", border: "rgba(52,211,153,0.4)", stripe: "#34d399" },
-  bad: { label: "❌ Dead", color: "#64748b", bg: "rgba(100,116,139,0.1)", border: "rgba(100,116,139,0.3)", stripe: "#334155" },
+  bad: { label: "❌ Bad", color: "#64748b", bg: "rgba(100,116,139,0.1)", border: "rgba(100,116,139,0.3)", stripe: "#334155" },
 };
 
 export const BMAP: Record<string, { bg: string; color: string; border: string }> = {

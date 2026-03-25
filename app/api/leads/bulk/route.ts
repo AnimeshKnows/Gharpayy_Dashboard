@@ -16,13 +16,24 @@ export async function POST(req: Request) {
     const { leads } = await req.json();
     if (!Array.isArray(leads)) return NextResponse.json({ error: 'Leads array required' }, { status: 400 });
 
+    // Validate that all leads have an explicit non-empty zone
+    const leadsWithoutZone = leads.filter(l => !String(l.zone || '').trim());
+    if (leadsWithoutZone.length > 0) {
+      return NextResponse.json(
+        { error: `${leadsWithoutZone.length} lead(s) missing zone. All leads must have a zone assigned.` },
+        { status: 400 }
+      );
+    }
+
     await connectToDatabase();
     
     // Transform leads to match MongoDB schema
     const transformedLeads = leads.map(l => ({
       ...l,
+      zone: String(l.zone || '').trim(),
       preferredLocation: l.preferred_location || l.preferredLocation,
-      assignedMemberId: l.assigned_member_id || l.assignedMemberId,
+      assignedMemberId: l.assigned_member_id || l.assignedMemberId || (authUser.role === 'member' ? authUser.id : undefined),
+      createdBy: authUser.id,
       firstResponseTimeMin: l.first_response_time_min || l.firstResponseTimeMin,
     }));
 
@@ -84,10 +95,14 @@ export async function PATCH(req: Request) {
       }
     }
 
-    const leadsToUpdate = await Lead.find({ _id: { $in: ids } });
+    const updateScope = authUser.role === 'member'
+      ? { _id: { $in: ids }, assignedMemberId: authUser.id }
+      : { _id: { $in: ids } };
+
+    const leadsToUpdate = await Lead.find(updateScope);
 
     const result = await Lead.updateMany(
-      { _id: { $in: ids } },
+      updateScope,
       { $set: mappedUpdates }
     );
 
@@ -168,10 +183,14 @@ export async function DELETE(req: Request) {
 
     await connectToDatabase();
     
-    // Fetch leads before deletion to preserve names in logs
-    const leadsToDelete = await Lead.find({ _id: { $in: ids } }, '_id name');
+    const deleteQuery = authUser.role === 'member'
+      ? { _id: { $in: ids }, assignedMemberId: authUser.id }
+      : { _id: { $in: ids } };
     
-    const result = await Lead.deleteMany({ _id: { $in: ids } });
+    // Fetch leads before deletion to preserve names in logs
+    const leadsToDelete = await Lead.find(deleteQuery, '_id name');
+    
+    const result = await Lead.deleteMany(deleteQuery);
 
     try {
       if (leadsToDelete.length > 0) {

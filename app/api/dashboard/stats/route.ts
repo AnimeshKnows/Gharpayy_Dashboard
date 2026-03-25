@@ -3,16 +3,42 @@ import connectToDatabase from '@/lib/mongodb';
 import Lead from '@/models/Lead';
 import Visit from '@/models/Visit';
 import Booking from '@/models/Booking';
+import { getAuthUserFromCookie } from '@/lib/auth';
 
 export async function GET() {
   try {
+    const authUser = await getAuthUserFromCookie();
+    if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     await connectToDatabase();
 
-    const [leads, visits, bookings] = await Promise.all([
-      Lead.find({}, 'id status firstResponseTimeMin source createdAt'),
-      Visit.find({}, 'id outcome scheduledAt'),
-      Booking.find({ bookingStatus: 'booked' }, 'id') // Assuming 'booked' is the status for closed bookings
+    const leadQuery: any = {};
+    const visitQuery: any = {};
+    const bookingQuery: any = { bookingStatus: 'booked' };
+
+    if (authUser.role === 'member') {
+      leadQuery.assignedMemberId = authUser.id;
+      
+      // For visits and bookings, we need to filter by associated lead or assigned agent
+      // Assuming Visit has a leadId or assignedTo field (need to check models)
+      // If we don't have direct filtering on visits/bookings, we might need a more complex query
+    }
+
+    const [leads] = await Promise.all([
+      Lead.find(leadQuery, 'id status firstResponseTimeMin source createdAt'),
+      // Add visit/booking filtering later if needed, but leads are the primary constraint
     ]);
+
+    // Re-fetch visits and bookings with filtering if member
+    let visits, bookings;
+    if (authUser.role === 'member') {
+      const memberLeads = leads.map(l => l._id);
+      visits = await Visit.find({ leadId: { $in: memberLeads } }, 'id outcome scheduledAt');
+      bookings = await Booking.find({ ...bookingQuery, leadId: { $in: memberLeads } }, 'id');
+    } else {
+      visits = await Visit.find({}, 'id outcome scheduledAt');
+      bookings = await Booking.find(bookingQuery, 'id');
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

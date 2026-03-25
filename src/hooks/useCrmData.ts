@@ -10,7 +10,8 @@ export type LeadWithRelations = {
   status: string;
   source: string;
   firstResponseTimeMin?: number;
-  members: { id: string, name: string } | null;
+  members: { id: string, name: string, phone?: string } | null;
+  creator?: { id: string, name: string, phone?: string } | null;
   properties: { id: string, name: string } | null;
   preferredLocation?: string;
   budget?: string;
@@ -247,6 +248,16 @@ export const useDashboardStats = () =>
     queryFn: async () => {
       const res = await fetch('/api/dashboard/stats');
       if (!res.ok) throw new Error('Failed to fetch dashboard stats');
+      return res.json();
+    },
+  });
+
+export const useOfficeZones = () =>
+  useQuery({
+    queryKey: ['office-zones'],
+    queryFn: async () => {
+      const res = await fetch('/api/zones');
+      if (!res.ok) throw new Error('Failed to fetch office zones');
       return res.json();
     },
   });

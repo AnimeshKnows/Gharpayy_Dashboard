@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Loader2, Phone, Mail, MapPin, IndianRupee, User, StickyNote, Sparkles, PenLine, CalendarDays, Briefcase, Home, Users } from 'lucide-react';
-import { useCreateLead, useAgents } from '@/hooks/useCrmData';
+import { useCreateLead, useAgents, useOfficeZones } from '@/hooks/useCrmData';
 import { SOURCE_LABELS } from '@/types/crm';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,18 +30,19 @@ const QuickAddLead = () => {
     name: '', phone: '', email: '', source: 'whatsapp' as string,
     budget: '', preferred_location: '', move_in_date: '', profession: '',
     room_type: '', need_preference: '', special_requests: '',
-    notes: '', assigned_member_id: '',
+    notes: '', assigned_member_id: '', zone: '',
   });
   const [duplicate, setDuplicate] = useState<{ isDuplicate: boolean; duplicateCount: number; id: string; name: string; status: string } | null>(null);
 
   const createLead = useCreateLead();
   const { data: members } = useAgents();
+  const { data: officeZones } = useOfficeZones();
 
   const reset = () => {
     setForm({
       name: '', phone: '', email: '', source: 'whatsapp', budget: '', preferred_location: '',
       move_in_date: '', profession: '', room_type: '', need_preference: '', special_requests: '',
-      notes: '', assigned_member_id: ''
+      notes: '', assigned_member_id: '', zone: ''
     });
     setDuplicate(null);
     setRawText('');
@@ -99,10 +100,15 @@ const QuickAddLead = () => {
       toast.error('Name and phone are required');
       return;
     }
+    if (!form.zone.trim()) {
+      toast.error('Please select a zone');
+      return;
+    }
     try {
       await createLead.mutateAsync({
         name: name.trim(),
         phone: phone.trim(),
+        zone: form.zone.trim(),
         email: (mode === 'smart' ? (parsed?.email || form.email) : form.email).trim() || null,
         source: form.source as any,
         budget: (mode === 'smart' ? (parsed?.budget || form.budget) : form.budget).trim() || null,
@@ -275,6 +281,22 @@ const QuickAddLead = () => {
                     </div>
                   </div>
 
+                  <div className="space-y-1">
+                    <Label className="text-xs">Zone *</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {officeZones?.map((z: any) => (
+                        <button
+                          key={z._id || z.id}
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, zone: f.zone === z.name ? "" : z.name }))}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${form.zone === z.name ? "bg-accent/20 border-accent/40 text-accent border" : "bg-muted/50 border-border text-muted-foreground border"}`}
+                        >
+                          {z.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Move-in Date</Label>
@@ -395,6 +417,22 @@ const QuickAddLead = () => {
                     <div className="space-y-1">
                       <Label className="text-xs">Notes</Label>
                       <Input placeholder="Quick notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className="h-10 rounded-xl" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Zone *</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {officeZones?.map((z: any) => (
+                        <button
+                          key={z._id || z.id}
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, zone: f.zone === z.name ? "" : z.name }))}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${form.zone === z.name ? "bg-accent/20 border-accent/40 text-accent border" : "bg-muted/50 border-border text-muted-foreground border"}`}
+                        >
+                          {z.name}
+                        </button>
+                      ))}
                     </div>
                   </div>
 

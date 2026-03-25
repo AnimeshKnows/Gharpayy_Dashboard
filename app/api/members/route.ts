@@ -35,11 +35,24 @@ export async function GET() {
       return NextResponse.json(transformed);
     }
 
-    // For admins, show only members under them
+    // For admins, show members whose zones overlap with admin zones
     if (authUser.role === 'admin') {
-      members = await User.find({ adminId: authUser.id })
+      const adminUser = await User.findById(authUser.id).select('zones');
+      const adminZones = new Set(
+        (adminUser?.zones || []).map((z: any) => String(z).trim().toLowerCase())
+      );
+
+      const allMembers = await User.find({ role: 'member' })
         .select('-password')
+        .populate('adminId', 'fullName email username')
         .sort({ fullName: 1 });
+
+      members = allMembers.filter((m: any) => {
+        const memberZones = Array.isArray(m.zones)
+          ? m.zones.map((z: any) => String(z).trim().toLowerCase())
+          : [];
+        return memberZones.some((z: string) => adminZones.has(z));
+      });
 
       const transformed = members.map((a) => ({
         id: a._id,

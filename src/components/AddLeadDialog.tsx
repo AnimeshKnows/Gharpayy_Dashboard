@@ -1,12 +1,12 @@
 'use client';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { useCreateLead, useAgents } from '@/hooks/useCrmData';
+import { useCreateLead, useAgents, useOfficeZones } from '@/hooks/useCrmData';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { T, ZONES, QUALITY, GEO_TECH_PARKS, FDISPLAY, detectAllZones, buildKnowledgeSnapshot, tsNow, AREAS, haversine, roadDist, driveMin, nearestMetro, nearestTechParks, enrichLeadGeo, LINE_COLOR, TIER_COLOR } from '@/lib/leadGeoData';
+import { T, QUALITY, GEO_TECH_PARKS, FDISPLAY, buildKnowledgeSnapshot, tsNow, AREAS, haversine, roadDist, driveMin, nearestMetro, nearestTechParks, enrichLeadGeo, LINE_COLOR, TIER_COLOR } from '@/lib/leadGeoData';
 import { parseLeadV2, splitLeads, parseMoveInV2, parseBudgetV2, parseMonth, type ParsedLeadV2, type BudgetRange } from '@/lib/leadParserV2';
 import { Pill, ZonePill, TechPill, TierBadge, UrgencyBadge, SourceBadge, MapLinkChip, BudgetChips, BLRBadge, BLRToggle, QualityToggle, ZoneSelector, NotesBox, GeoIntelPanel } from '@/components/LeadUIAtoms';
 
@@ -157,6 +157,7 @@ const AddLeadDialog = () => {
   const [open, setOpen] = useState(false);
   const createLead = useCreateLead();
   const { data: members } = useAgents();
+  const { data: officeZones } = useOfficeZones();
 
   // Single lead state
   const [mode, setMode] = useState<"single" | "bulk">("single");
@@ -173,7 +174,13 @@ const AddLeadDialog = () => {
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const [showMatcher, setShowMatcher] = useState(false);
-  const [assignedMemberId, setAssignedAgentId] = useState("");
+  const [assignedMemberId, setAssignedAgentId] = useState(user?.role === 'member' ? user.id : 'unassigned');
+
+  useEffect(() => {
+    if (user?.role === 'member' && assignedMemberId === 'unassigned') {
+      setAssignedAgentId(user.id);
+    }
+  }, [user]);
 
   const onTextChange = (v: string) => {
     setRawText(v);
@@ -181,7 +188,7 @@ const AddLeadDialog = () => {
       const p = parseLeadV2(v);
       setParsed(p);
       // Always show the editable form — user can fill missing fields manually
-      setEdited(p ? { ...p, quality: p.quality || "good" } : {
+      setEdited(p ? { ...p, zone: "", zones: [], quality: p.quality || "good" } : {
         name: "", phone: "", email: "", location: "", areas: [],
         buildingName: "", fullAddress: "", mapLinks: [],
         budget: "", budgetRanges: [], budgetRaw: "",
@@ -196,16 +203,18 @@ const AddLeadDialog = () => {
   const saveSingle = async () => {
     if (!edited) return;
     if (!edited.name || !edited.phone) { toast.error("Name and phone are required"); return; }
-    const zones = detectAllZones(edited.location + " " + rawText);
-    const zone = zones[0] ?? edited.zone ?? "";
+    if (!String(edited.zone || '').trim()) { toast.error("Please select a Zone before saving"); return; }
+    const zones: string[] = []; // No auto-detection
+    const zone = edited.zone;
     const techParks = GEO_TECH_PARKS.filter(p => p.kw.some(k => (edited.location + " " + rawText).toLowerCase().includes(k))).map(p => p.name);
     const moveInParsed = parseMoveInV2(edited.moveIn);
-    const quality = (moveInParsed?.urgency === "immediate" || moveInParsed?.urgency === "hot") ? "hot" : edited.quality;
+    const quality = edited.quality;
 
     try {
       const targetAgentId = assignedMemberId === "unassigned" ? null : (assignedMemberId || (members?.[0] as any)?.id || null);
       await createLead.mutateAsync({
         name: edited.name, phone: edited.phone, email: edited.email || null,
+        zone: edited.zone,
         source: edited.source === "Manual" ? "whatsapp" : "whatsapp",
         budget: edited.budget || null,
         preferredLocation: edited.location || null,
@@ -228,7 +237,8 @@ const AddLeadDialog = () => {
       });
       const sl: SessionLead = { id: Date.now(), addedAt: tsNow(), ...edited, zone, zones, techParks, quality, moveInParsed, rawText };
       setSessionLeads(prev => [sl, ...prev]);
-      setRawText(""); setParsed(null); setEdited(null); setAssignedAgentId("");
+      setRawText(""); setParsed(null); setEdited(null); 
+      setAssignedAgentId(user?.role === 'member' ? user.id : 'unassigned');
       toast.success("✓ Lead saved to database!");
     } catch (err: any) { toast.error(err.message || "Failed to create lead"); }
   };
@@ -247,13 +257,17 @@ const AddLeadDialog = () => {
     setBulkBusy(true);
     try {
       const leads = bulkPreview.parsed.map((p: ParsedLeadV2) => {
-        const zones = detectAllZones((p.location || "") + " " + (p.name || ""));
-        const zone = zones[0] ?? p.zone ?? "";
+        const zones: string[] = []; // No auto-detection
+        const zone = p.zone;
+        if (!zone) {
+          throw new Error(`Lead "${p.name}" requires a zone to be assigned.`);
+        }
         const techParks = GEO_TECH_PARKS.filter(tp => tp.kw.some(k => ((p.location || "")).toLowerCase().includes(k))).map(tp => tp.name);
         const mip = parseMoveInV2(p.moveIn || "");
-        const autoQ = (mip?.urgency === "immediate" || mip?.urgency === "hot") ? "hot" : bulkQuality;
+        const autoQ = bulkQuality;
         return {
           name: p.name, phone: p.phone, email: p.email || null,
+          zone: zone,
           source: "whatsapp", budget: p.budget || null,
           preferredLocation: p.location || null, moveInDate: p.moveIn || null,
           profession: p.type?.toLowerCase() || null, roomType: p.room?.toLowerCase() || null,
@@ -278,7 +292,7 @@ const AddLeadDialog = () => {
           <Plus size={13} /> Add Lead
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-[98vw] max-w-none h-[95vh] p-0 border-0 bg-transparent shadow-none [&>button]:hidden">
+      <DialogContent className="w-[95vw] sm:max-w-[500px] h-[90vh] sm:h-[85vh] p-0 border-0 bg-transparent shadow-none [&>button]:hidden">
         <DialogTitle className="sr-only">Add Lead</DialogTitle>
         {showMatcher && <AIMatcher onClose={() => setShowMatcher(false)} />}
         <div style={{ fontFamily: T.sans, background: T.bg0, height: "100%", color: T.text, borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 8px 60px rgba(0,0,0,0.12)" }}>
@@ -300,8 +314,8 @@ const AddLeadDialog = () => {
           </div>
 
           <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-            {/* LEFT PANEL */}
-            <div style={{ width: 430, minWidth: 400, borderRight: `1px solid ${T.line}`, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+            {/* MAIN PANEL */}
+            <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={{ background: T.bg1, border: `1px solid ${T.line}`, borderRadius: 9, padding: 3, display: "flex", gap: 2 }}>
                 {([["single", "📋 Single Lead"], ["bulk", "📦 Bulk Import"]] as const).map(([m, lbl]) => (<button key={m} onClick={() => setMode(m as any)} style={{ flex: 1, padding: "8px 0", borderRadius: 7, fontSize: 12.5, fontWeight: mode === m ? 700 : 400, background: mode === m ? `linear-gradient(135deg,${T.acc},${T.acc2})` : "transparent", color: mode === m ? T.bg0 : T.mid, border: "none", cursor: "pointer" }}>{lbl}</button>))}
               </div>
@@ -342,19 +356,37 @@ const AddLeadDialog = () => {
                       <BLRToggle value={edited.inBLR} onChange={v => setEdited({ ...edited, inBLR: v })} />
                     </div>
                     <div style={{ background: T.bg1, border: `1px solid ${T.line}`, borderRadius: 7, padding: "9px 11px" }}>
-                      <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase" as const, letterSpacing: "0.07em", fontWeight: 700, marginBottom: 7, display: "flex", alignItems: "center", gap: 7 }}>Zone{edited.zone && <><ZonePill zoneName={edited.zone} xs /><span style={{ color: "#34d399", fontSize: 9, textTransform: "none" as const }}>auto ✓</span></>}</div>
-                      <ZoneSelector value={edited.zone} onSelect={z => setEdited({ ...edited, zone: z })} />
-                    </div>
-                    <div style={{ background: T.bg1, border: `1px solid ${T.line}`, borderRadius: 7, padding: "9px 11px" }}>
                       <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase" as const, letterSpacing: "0.07em", fontWeight: 700, marginBottom: 7 }}>Lead Quality</div>
                       <div style={{ display: "flex", gap: 6 }}>{Object.entries(QUALITY).map(([k, q]) => (<button key={k} onClick={() => setEdited({ ...edited, quality: k })} style={{ flex: 1, fontSize: 12, padding: "8px 0", borderRadius: 7, fontWeight: edited.quality === k ? 700 : 400, background: edited.quality === k ? q.bg : "transparent", color: edited.quality === k ? q.color : T.mid, border: `1px solid ${edited.quality === k ? q.border : T.line}`, cursor: "pointer" }}>{q.label}</button>))}</div>
+                    </div>
+                    <div style={{ background: T.bg1, border: `1px solid ${T.line}`, borderRadius: 7, padding: "9px 11px" }}>
+                      <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase" as const, letterSpacing: "0.07em", fontWeight: 700, marginBottom: 7, display: "flex", alignItems: "center", gap: 7 }}>Zone <span style={{ color: "#ef4444" }}>*</span></div>
+                      <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                        {officeZones?.map((z: any) => (
+                          <button
+                            key={z._id || z.id}
+                            onClick={() => setEdited({ ...edited, zone: edited.zone === z.name ? "" : z.name })}
+                            style={{
+                              fontSize: 11,
+                              padding: "4px 11px",
+                              borderRadius: 5,
+                              cursor: "pointer",
+                              background: edited.zone === z.name ? "rgba(196,136,13,0.18)" : "transparent",
+                              color: edited.zone === z.name ? "#d4a853" : T.dim,
+                              border: `1px solid ${edited.zone === z.name ? "rgba(196,136,13,0.35)" : T.line}`,
+                              transition: "all 0.12s"
+                            }}
+                          >
+                            {z.name}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     {members && members.length > 0 && (
                       <div style={{ background: T.bg1, border: `1px solid ${T.line}`, borderRadius: 7, padding: "9px 11px" }}>
                         <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase" as const, letterSpacing: "0.07em", fontWeight: 700, marginBottom: 7 }}>Assign Member</div>
                         <select value={assignedMemberId} onChange={e => setAssignedAgentId(e.target.value)}
                           style={{ width: "100%", background: T.bg0, border: `1px solid ${T.line2}`, borderRadius: 7, padding: "7px 10px", fontSize: 11, color: T.text, outline: "none" }}>
-                          <option value="">Auto-assign (Default behavior)</option>
                           <option value="unassigned">Unassigned</option>
                           {members.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
                         </select>
@@ -401,67 +433,6 @@ const AddLeadDialog = () => {
               )}
             </div>
 
-            {/* RIGHT PANEL — session leads */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
-              {sessionLeads.length === 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12 }}>
-                  <div style={{ fontSize: 52, opacity: 0.4 }}>🏠</div>
-                  <p style={{ fontSize: 13, color: T.dim, textAlign: "center", lineHeight: 1.8 }}>Leads you add will appear here.<br />They are saved directly to the database.</p>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: 9.5, color: T.dim, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.09em", marginBottom: 12 }}>Session Leads ({sessionLeads.length})</div>
-                  {sessionLeads.map(lead => {
-                    const q = QUALITY[lead.quality] || QUALITY.good;
-                    const exp = expandedId === lead.id;
-                    const allZones = lead.zones?.length ? lead.zones : (lead.zone ? [lead.zone] : []);
-                    return (
-                      <div key={lead.id} onClick={() => setExpandedId(exp ? null : lead.id)}
-                        style={{ background: T.bg2, border: `1px solid ${exp ? q.border : T.line}`, borderRadius: 11, padding: "12px 13px", marginBottom: 5, cursor: "pointer", position: "relative", overflow: "hidden", transition: "border-color 0.13s" }}>
-                        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: q.stripe, borderRadius: "11px 0 0 11px", opacity: 0.8 }} />
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, paddingLeft: 7 }}>
-                          <div style={{ width: 35, height: 35, borderRadius: "50%", flexShrink: 0, background: `hsl(${(lead.id % 360)},30%,92%)`, border: `2px solid hsl(${(lead.id % 360)},35%,82%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: `hsl(${(lead.id % 360)},45%,40%)` }}>{(lead.name || "?")[0]?.toUpperCase()}</div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <span style={{ fontSize: 14, fontWeight: 700, color: T.hi }}>{lead.name || <span style={{ color: T.dim, fontStyle: "italic", fontWeight: 400, fontSize: 12 }}>No name</span>}</span>
-                              {lead.phone && <span style={{ fontFamily: T.mono, fontSize: 11, color: T.acc, fontWeight: 500 }}>{lead.phone}</span>}
-                              <BLRBadge value={lead.inBLR} />
-                              {allZones.map(z => <ZonePill key={z} zoneName={z} xs />)}
-                              <SourceBadge source={lead.source} />
-                              {lead.moveInParsed && <UrgencyBadge urgency={lead.moveInParsed.urgency} label={lead.moveInParsed.label} />}
-                            </div>
-                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 3 }}>
-                              {lead.location && <span style={{ fontSize: 11, color: T.mid }}>📍 {lead.location.substring(0, 50)}</span>}
-                              {lead.budget && <span style={{ fontSize: 11, color: T.mid }}>💰 {lead.budget}</span>}
-                              {lead.moveIn && <span style={{ fontSize: 11, color: T.mid }}>📅 {lead.moveIn}</span>}
-                            </div>
-                            {(lead.techParks || []).length > 0 && (<div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>{lead.techParks.map(tp => <TechPill key={tp} name={tp} />)}</div>)}
-                            <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap", alignItems: "center" }}>
-                              {lead.type && <Pill text={lead.type} />}{lead.room && <Pill text={lead.room} />}
-                              {lead.need && lead.need.split(/\s*\/\s*/).map((n: string) => <Pill key={n} text={n.trim()} />)}
-                            </div>
-                          </div>
-                          <span style={{ fontSize: 9.5, color: T.dim, fontFamily: T.mono, flexShrink: 0 }}>{lead.addedAt}</span>
-                        </div>
-
-                        {exp && (<div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.line}`, paddingLeft: 7 }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 10 }}>
-                            {FDISPLAY.filter(f => f.key !== "budget").map(({ key, label, icon }) => (lead as any)[key] ? (<div key={key} style={{ background: T.bg1, borderRadius: 7, padding: "7px 9px", border: `1px solid ${T.line}` }}><div style={{ fontSize: 8.5, color: T.dim, marginBottom: 2, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{icon} {label}</div><div style={{ fontSize: 12, color: T.text, lineHeight: 1.5 }}>{(lead as any)[key]}</div></div>) : null)}
-                          </div>
-                          {(lead.budgetRanges?.length || lead.budget) && (
-                            <div style={{ background: T.bg1, border: `1px solid ${T.line}`, borderRadius: 7, padding: "9px 11px", marginBottom: 8 }}>
-                              <div style={{ fontSize: 8.5, color: T.dim, marginBottom: 6, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>💰 Budget</div>
-                              <BudgetChips ranges={lead.budgetRanges} raw={lead.budget} />
-                            </div>
-                          )}
-                          <GeoIntelPanel lead={lead} />
-                        </div>)}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </DialogContent>

@@ -16,13 +16,23 @@ export async function GET(req: Request) {
 
     await connectToDatabase();
 
+    const query: any = {};
+    if (authUser.role === 'member') {
+      // First find leads the member has access to
+      const memberLeads = await Lead.find({
+        assignedMemberId: authUser.id
+      }).select('_id');
+      const leadIds = memberLeads.map(l => l._id.toString());
+      query.leadId = { $in: leadIds };
+    }
+
     const [activities, total] = await Promise.all([
-      LeadActivity.find({})
+      LeadActivity.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      LeadActivity.countDocuments({})
+      LeadActivity.countDocuments(query)
     ]);
 
     return NextResponse.json({ 

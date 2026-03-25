@@ -11,9 +11,21 @@ export async function GET() {
 
     await connectToDatabase();
 
-    const query = authUser.zoneName ? { isActive: true, zoneName: authUser.zoneName } : { isActive: true };
-    const members = await Member.find(query);
-    const leads = await Lead.find({}, 'id status assignedMemberId firstResponseTimeMin');
+    let memberQuery: any = { isActive: true };
+    if (authUser.role === 'member') {
+      memberQuery._id = authUser.id;
+    } else if (authUser.zoneName) {
+      memberQuery.zoneName = authUser.zoneName;
+    }
+
+    const members = await Member.find(memberQuery);
+    
+    const leadQuery: any = {};
+    if (authUser.role === 'member') {
+      leadQuery.assignedMemberId = authUser.id;
+    }
+    
+    const leads = await Lead.find(leadQuery, 'id status assignedMemberId firstResponseTimeMin');
 
     const stats = members.map(member => {
       const agentLeads = leads.filter(l => l.assignedMemberId?.toString() === member._id.toString());

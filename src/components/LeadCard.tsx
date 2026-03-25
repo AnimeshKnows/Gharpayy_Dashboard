@@ -1,5 +1,6 @@
 import { Lead, PIPELINE_STAGES, SOURCE_LABELS } from '@/types/crm';
 import { Phone, Clock, MapPin, IndianRupee, PhoneCall, MessageCircle, AlertCircle } from 'lucide-react';
+import { ZonePill } from '@/components/LeadUIAtoms';
 
 interface LeadCardProps {
   lead: Lead;
@@ -34,9 +35,12 @@ const LeadCard = ({ lead, compact, stale }: LeadCardProps) => {
             </p>
           </div>
         </div>
-        <span className={`badge-pipeline text-[10px] ${sourceColors[lead.source] || 'bg-secondary text-secondary-foreground'}`}>
-          {SOURCE_LABELS[lead.source]}
-        </span>
+        <div className="flex flex-col gap-1 items-end">
+          {lead.zone && <ZonePill zoneName={lead.zone} xs />}
+          <span className={`badge-pipeline text-[10px] ${sourceColors[lead.source] || 'bg-secondary text-secondary-foreground'}`}>
+            {SOURCE_LABELS[lead.source]}
+          </span>
+        </div>
       </div>
 
       {!compact && (

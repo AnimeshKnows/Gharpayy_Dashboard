@@ -6,8 +6,10 @@ export interface ILead extends Document {
   email?: string;
   status: 'new' | 'contacted' | 'qualified' | 'visit_scheduled' | 'visit_completed' | 'negotiation' | 'booked' | 'lost';
   source: string;
+  zone: string;
   firstResponseTimeMin?: number;
   assignedMemberId?: mongoose.Types.ObjectId;
+  createdBy?: mongoose.Types.ObjectId;
   propertyId?: mongoose.Types.ObjectId;
   preferredLocation?: string;
   budget?: string;
@@ -34,8 +36,10 @@ const LeadSchema: Schema = new Schema(
       default: 'new' 
     },
     source: { type: String, required: true },
+    zone: { type: String, required: true },
     firstResponseTimeMin: { type: Number },
     assignedMemberId: { type: Schema.Types.ObjectId, ref: 'User' },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     propertyId: { type: Schema.Types.ObjectId, ref: 'Property' },
     preferredLocation: { type: String },
     budget: { type: String },
@@ -51,4 +55,8 @@ const LeadSchema: Schema = new Schema(
   { timestamps: true }
 );
 
-export default mongoose.models.Lead || mongoose.model<ILead>('Lead', LeadSchema);
+if (mongoose.models.Lead) {
+  delete mongoose.models.Lead;
+}
+
+export default mongoose.model<ILead>('Lead', LeadSchema);

@@ -6,20 +6,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAgents, useProperties, useCreateAgent, useUpdateAgent, useDeleteAgent, useCreateProperty, useDeleteProperty } from '@/hooks/useCrmData';
+import { useAgents } from '@/hooks/useCrmData';
 import { useAuth } from '@/contexts/AuthContext';
 import { SuperAdminSettingsPanel } from '@/components/SuperAdminSettingsPanel';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { KeyRound, Plus, Trash2, UserCog, Building2, User, Save, Activity } from 'lucide-react';
-import { LoginActivityTab, LeadActivityTab } from '@/components/ActivityTabs';
+import { KeyRound, UserCog, User, Save } from 'lucide-react';
 
 const SettingsPage = () => {
   const { user } = useAuth();
   const { data: members } = useAgents();
-  const { data: properties } = useProperties();
   const isCEO = user?.role === 'super_admin';
   const isManager = user?.role === 'manager';
+  const isAdmin = user?.role === 'admin';
+  const isMember = user?.role === 'member';
 
   if (isCEO) {
     return (
@@ -45,22 +45,28 @@ const SettingsPage = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
       >
-        <Tabs defaultValue={isManager ? 'admins' : 'team'} className="space-y-6">
+        <Tabs defaultValue={isManager ? 'admins' : isAdmin ? 'members' : 'profile'} className="space-y-6">
           <TabsList className="flex flex-wrap h-auto gap-2 w-full max-w-full bg-transparent p-0">
-            {isManager ? (
+            {isManager && (
               <TabsTrigger value="admins" className="text-xs gap-1.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary border bg-background"><UserCog size={13} /> Admins</TabsTrigger>
-            ) : (
+            )}
+            {isAdmin && (
+              <TabsTrigger value="members" className="text-xs gap-1.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary border bg-background"><UserCog size={13} /> Members</TabsTrigger>
+            )}
+            {!isManager && !isAdmin && !isMember && (
               <TabsTrigger value="team" className="text-xs gap-1.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary border bg-background"><UserCog size={13} /> Team</TabsTrigger>
             )}
-            <TabsTrigger value="properties" className="text-xs gap-1.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary border bg-background"><Building2 size={13} /> Properties</TabsTrigger>
             <TabsTrigger value="profile" className="text-xs gap-1.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary border bg-background"><User size={13} /> Profile</TabsTrigger>
-            <TabsTrigger value="loginActivity" className="text-xs gap-1.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary border bg-background"><Activity size={13} /> Login Activity</TabsTrigger>
-            <TabsTrigger value="leadActivity" className="text-xs gap-1.5 data-[state=active]:bg-primary/10 data-[state=active]:text-primary border bg-background"><Activity size={13} /> Lead Activity</TabsTrigger>
           </TabsList>
 
-          {!isManager && (
+          {!isManager && !isAdmin && !isMember && (
             <TabsContent value="team">
               <TeamTab members={members || []} />
+            </TabsContent>
+          )}
+          {isAdmin && (
+            <TabsContent value="members">
+              <TeamTab members={members || []} title="Members" emptyLabel="No members in matching zones" />
             </TabsContent>
           )}
           {isManager && (
@@ -68,17 +74,8 @@ const SettingsPage = () => {
               <AdminsTab />
             </TabsContent>
           )}
-          <TabsContent value="properties">
-            <PropertiesTab properties={properties || []} />
-          </TabsContent>
           <TabsContent value="profile">
             <ProfileTab user={user || {}} />
-          </TabsContent>
-          <TabsContent value="loginActivity">
-            <LoginActivityTab />
-          </TabsContent>
-          <TabsContent value="leadActivity">
-            <LeadActivityTab />
           </TabsContent>
         </Tabs>
       </motion.div>
@@ -136,21 +133,12 @@ function AdminsTab() {
   );
 }
 
-function TeamTab({ members }: { members: any[] }) {
-  const { user, loading, checkUser } = useAuth();
-  const isAdmin = user?.role === 'admin' || user?.username?.endsWith('admin@gharpayy');
-  const updateAgent = useUpdateAgent();
-
-  useEffect(() => {
-    if (!user && !loading) {
-      checkUser();
-    }
-  }, [user, loading, checkUser]);
+function TeamTab({ members, title = 'Team Members', emptyLabel = 'No members yet' }: { members: any[]; title?: string; emptyLabel?: string }) {
 
   return (
     <div className="space-y-6">
       <div className="kpi-card">
-        <h3 className="font-display font-semibold text-xs mb-4">Team Members</h3>
+        <h3 className="font-display font-semibold text-xs mb-4">{title}</h3>
         <div className="space-y-2">
           {members.map(a => (
             <div key={a.id} className="flex items-start justify-between gap-3 p-3 rounded-xl bg-secondary/50">
@@ -163,77 +151,7 @@ function TeamTab({ members }: { members: any[] }) {
               </div>
             </div>
           ))}
-          {members.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">No members yet</p>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PropertiesTab({ properties }: { properties: any[] }) {
-  const [form, setForm] = useState({ name: '', city: '', area: '', price_range: '', address: '' });
-  const createProperty = useCreateProperty();
-  const deleteProperty = useDeleteProperty();
-
-  const handleAdd = async () => {
-    if (!form.name) { toast.error('Name is required'); return; }
-    try {
-      await createProperty.mutateAsync(form);
-      toast.success('Property added');
-      setForm({ name: '', city: '', area: '', price_range: '', address: '' });
-    } catch (err: any) { toast.error(err.message); }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      if (!confirm('Are you sure?')) return;
-      await deleteProperty.mutateAsync(id);
-      toast.success('Property removed');
-    } catch (err: any) { toast.error(err.message); }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="kpi-card">
-        <h3 className="font-display font-semibold text-xs mb-4">Add Property</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-[10px]">Name *</Label>
-            <Input placeholder="Property name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="text-xs" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[10px]">City</Label>
-            <Input placeholder="City" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} className="text-xs" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[10px]">Area</Label>
-            <Input placeholder="Area" value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))} className="text-xs" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[10px]">Price Range</Label>
-            <Input placeholder="₹50L - 80L" value={form.price_range} onChange={e => setForm(f => ({ ...f, price_range: e.target.value }))} className="text-xs" />
-          </div>
-        </div>
-        <Button size="sm" onClick={handleAdd} disabled={createProperty.isPending} className="mt-3 gap-1.5 text-xs">
-          <Plus size={12} /> {createProperty.isPending ? 'Adding...' : 'Add Property'}
-        </Button>
-      </div>
-
-      <div className="kpi-card">
-        <h3 className="font-display font-semibold text-xs mb-4">Properties</h3>
-        <div className="space-y-2">
-          {properties.map(p => (
-            <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-secondary/50">
-              <div>
-                <p className="text-xs font-medium text-foreground">{p.name}</p>
-                <p className="text-[10px] text-muted-foreground">{[p.area, p.city].filter(Boolean).join(', ')} {(p as any).price_range ? `· ${(p as any).price_range}` : ''}</p>
-              </div>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(p.id)}>
-                <Trash2 size={12} />
-              </Button>
-            </div>
-          ))}
-          {properties.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">No properties yet</p>}
+          {members.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">{emptyLabel}</p>}
         </div>
       </div>
     </div>
@@ -241,44 +159,94 @@ function PropertiesTab({ properties }: { properties: any[] }) {
 }
 
 function ProfileTab({ user }: { user: any }) {
-  const [name, setName] = useState('');
+  const [profileUser, setProfileUser] = useState<any>(user || {});
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        const data = await res.json();
+        if (data?.user) {
+          setProfileUser(data.user);
+          return;
+        }
+      } catch {}
+      setProfileUser(user || {});
+    };
+
+    loadProfile();
+  }, [user]);
+
+  const effectiveUser = profileUser || user || {};
+  const effectiveZones = Array.isArray(effectiveUser?.zones) && effectiveUser.zones.length > 0
+    ? effectiveUser.zones
+    : (effectiveUser?.zoneName ? [effectiveUser.zoneName] : []);
+
   const handleSave = async () => {
+    if (!password) {
+      toast.error('Please enter a new password');
+      return;
+    }
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
     setSaving(true);
     try {
-      // Stub for profile update using fetch
       const res = await fetch('/api/auth/update', {
-        method: 'POST',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, password }),
+        body: JSON.stringify({ password }),
       });
-      if (!res.ok) throw new Error('Update failed');
-      toast.success('Profile updated (simulated)');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Password update failed');
+      toast.success('Password updated successfully');
       setPassword('');
+      setConfirmPassword('');
     } catch (err: any) { toast.error(err.message); }
     finally { setSaving(false); }
   };
 
   return (
-    <div className="kpi-card max-w-md">
+    <div className="kpi-card max-w-lg">
       <h3 className="font-display font-semibold text-xs mb-4">Your Profile</h3>
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <Label className="text-[10px]">Email</Label>
-          <Input value={user?.email || ''} disabled className="text-xs bg-secondary" />
+          <Label className="text-[10px]">Full Name</Label>
+          <Input value={effectiveUser?.fullName || ''} disabled className="text-xs bg-secondary" />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-[10px]">Full Name</Label>
-          <Input placeholder="Update your name" value={name} onChange={e => setName(e.target.value)} className="text-xs" />
+          <Label className="text-[10px]">Email</Label>
+          <Input value={effectiveUser?.email || ''} disabled className="text-xs bg-secondary" />
         </div>
+        <div className="space-y-1.5">
+          <Label className="text-[10px]">Phone</Label>
+          <Input value={effectiveUser?.phone || 'N/A'} disabled className="text-xs bg-secondary" />
+        </div>
+        {(effectiveUser?.role === 'admin' || effectiveUser?.role === 'member') && (
+          <div className="space-y-1.5">
+            <Label className="text-[10px]">Zones</Label>
+            <Input value={effectiveZones.length > 0 ? effectiveZones.join(', ') : 'N/A'} disabled className="text-xs bg-secondary" />
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label className="text-[10px]">New Password</Label>
-          <Input type="password" placeholder="Leave blank to keep current" value={password} onChange={e => setPassword(e.target.value)} className="text-xs" />
+          <Input type="password" placeholder="Enter new password" value={password} onChange={e => setPassword(e.target.value)} className="text-xs" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-[10px]">Confirm New Password</Label>
+          <Input type="password" placeholder="Confirm new password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="text-xs" />
         </div>
         <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1.5 text-xs">
-          <Save size={12} /> {saving ? 'Saving...' : 'Save Changes'}
+          <Save size={12} /> {saving ? 'Updating...' : 'Change Password'}
         </Button>
       </div>
     </div>

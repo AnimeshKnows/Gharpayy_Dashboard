@@ -86,7 +86,6 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
   const stage = PIPELINE_STAGES.find(s => s.key === lead.status);
   const score = lead.leadScore ?? 0;
   const parsedMetadata = ((lead as any).parsedMetadata || {}) as Record<string, any>;
-  const parsedAreas: string[] = Array.isArray(parsedMetadata.areas) ? parsedMetadata.areas : [];
   const parsedTechParks: string[] = Array.isArray(parsedMetadata.techParks) ? parsedMetadata.techParks : [];
   const parsedMapLinks: string[] = Array.isArray(parsedMetadata.mapLinks) ? parsedMetadata.mapLinks : [];
   const parsedExtraEntries = Object.entries((parsedMetadata.extraFields || {}) as Record<string, string>);
@@ -198,19 +197,19 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
                 </div>
               ) : null}
 
-              {(parsedAreas.length > 0 || parsedTechParks.length > 0 || parsedMapLinks.length > 0 || parsedMetadata.fullAddress || parsedMetadata.buildingName || parsedMetadata.sourceFormat || parsedMetadata.moveInUrgency || parsedMetadata.quality || parsedMetadata.inBLR !== undefined || parsedExtraEntries.length > 0) ? (
+              {((lead as any).zone || parsedTechParks.length > 0 || parsedMapLinks.length > 0 || parsedMetadata.fullAddress || parsedMetadata.buildingName || parsedMetadata.sourceFormat || parsedMetadata.moveInUrgency || parsedMetadata.quality || parsedMetadata.inBLR !== undefined || parsedExtraEntries.length > 0) ? (
                 <div className="sm:col-span-2 rounded-lg bg-secondary/60 px-3 py-3 text-xs text-foreground space-y-2">
                   <div className="text-[10px] font-semibold text-muted-foreground">Parsed Insights</div>
 
                   <div className="flex flex-wrap gap-2">
+                    {(lead as any).zone ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-primary text-primary font-semibold bg-primary/5">
+                        {(lead as any).zone}
+                      </span>
+                    ) : null}
                     {parsedMetadata.sourceFormat ? (
                       <span className="text-[10px] px-2 py-0.5 rounded-full border border-border text-muted-foreground">
                         Source: {parsedMetadata.sourceFormat}
-                      </span>
-                    ) : null}
-                    {parsedMetadata.zone ? (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-border text-muted-foreground">
-                        Zone: {parsedMetadata.zone}
                       </span>
                     ) : null}
                     {parsedMetadata.moveInUrgency ? (
@@ -223,25 +222,14 @@ const LeadDetailDrawer = ({ lead, open, onClose }: Props) => {
                         Quality: {parsedMetadata.quality}
                       </span>
                     ) : null}
-                    {parsedMetadata.inBLR !== undefined && parsedMetadata.inBLR !== null ? (
+                    {parsedMetadata.inBLR !== undefined ? (
                       <span className="text-[10px] px-2 py-0.5 rounded-full border border-border text-muted-foreground">
-                        In BLR: {parsedMetadata.inBLR ? 'Yes' : 'No'}
+                        In BLR: {parsedMetadata.inBLR === null ? 'Unknown' : (parsedMetadata.inBLR ? 'Yes' : 'No')}
                       </span>
                     ) : null}
                   </div>
 
-                  {parsedAreas.length > 0 ? (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground mb-1">Areas</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {parsedAreas.map((area, idx) => (
-                          <span key={`${area}-${idx}`} className="text-[10px] px-2 py-0.5 rounded border border-border text-foreground">
-                            {area}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
+
 
                   {parsedTechParks.length > 0 ? (
                     <div>

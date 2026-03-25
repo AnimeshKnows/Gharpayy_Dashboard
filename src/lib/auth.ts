@@ -7,6 +7,7 @@ import User from '@/models/User';
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_change_me';
 const ZONES = ['Zone1', 'Zone2', 'Zone3', 'Zone4', 'Zone5'] as const;
 const DEFAULT_ADMIN_PASSWORD = '12345678';
+const DEFAULT_SUPER_ADMIN_PHONE = '70158 86489';
 const ZONE_ADMIN_NAMES: Record<ZoneName, string> = {
   Zone1: 'AK',
   Zone2: 'BK',
@@ -34,9 +35,30 @@ export async function ensureDefaultCEO() {
   const ceoEmail = 'superadmin@gharpayy';
   const ceoFullName = 'Gharpayy';
   const ceoPassword = '12345678';
+  const ceoPhone = DEFAULT_SUPER_ADMIN_PHONE;
   const existing = await User.findOne({ username: ceoUsername });
 
   if (existing) {
+    let changed = false;
+    if (existing.role !== 'super_admin') {
+      existing.role = 'super_admin';
+      changed = true;
+    }
+    if (!existing.fullName) {
+      existing.fullName = ceoFullName;
+      changed = true;
+    }
+    if (!existing.email) {
+      existing.email = ceoEmail;
+      changed = true;
+    }
+    if (!existing.phone) {
+      existing.phone = ceoPhone;
+      changed = true;
+    }
+    if (changed) {
+      await existing.save();
+    }
     return;
   }
 
@@ -45,6 +67,7 @@ export async function ensureDefaultCEO() {
   await User.create({
     username: ceoUsername,
     email: ceoEmail,
+    phone: ceoPhone,
     password: hashedPassword,
     fullName: ceoFullName,
     role: 'super_admin',
@@ -110,6 +133,12 @@ export async function getAuthUserFromCookie() {
 
     const user = await User.findById(decoded.userId).select('-password');
     if (!user) return null;
+
+    // Ensure super admin always has a default phone persisted.
+    if (user.role === 'super_admin' && !user.phone) {
+      user.phone = DEFAULT_SUPER_ADMIN_PHONE;
+      await user.save();
+    }
 
     return {
       id: user._id.toString(),

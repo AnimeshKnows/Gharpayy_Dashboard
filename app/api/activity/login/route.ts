@@ -15,13 +15,18 @@ export async function GET(req: Request) {
 
     await connectToDatabase();
 
+    const query: any = {};
+    if (authUser.role === 'member') {
+      query.userId = authUser.id;
+    }
+
     const [activities, total] = await Promise.all([
-      LoginActivity.find({})
+      LoginActivity.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      LoginActivity.countDocuments({})
+      LoginActivity.countDocuments(query)
     ]);
 
     return NextResponse.json({ 

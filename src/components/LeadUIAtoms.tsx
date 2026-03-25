@@ -12,9 +12,8 @@ export function Pill({ text, xs }: { text: string; xs?: boolean }) {
 
 export function ZonePill({ zoneName, xs, extra }: { zoneName: string; xs?: boolean; extra?: string }) {
   if (!zoneName) return null;
-  const z = ZONES.find(z => z.zone === zoneName);
-  if (!z) return null;
-  return <span style={{ background: z.bg, color: z.color, border: `1px solid ${z.border}`, borderRadius: 5, fontSize: xs ? 9.5 : 11, padding: xs ? "1px 6px" : "2px 9px", fontWeight: 700, letterSpacing: "0.04em", display: "inline-flex", alignItems: "center", gap: 3 }}>{zoneName}{extra && <span style={{ opacity: 0.6, fontWeight: 400, fontSize: 9 }}>{extra}</span>}</span>;
+  // Simple zone display - no color coding
+  return <span style={{ background: "rgba(100,116,139,0.1)", color: "#64748b", border: "1px solid rgba(100,116,139,0.25)", borderRadius: 5, fontSize: xs ? 9.5 : 11, padding: xs ? "2px 8px" : "3px 10px", fontWeight: 600, letterSpacing: "0.02em", display: "inline-flex", alignItems: "center", gap: 3 }}>{zoneName}{extra && <span style={{ opacity: 0.6, fontWeight: 400, fontSize: 9 }}>{extra}</span>}</span>;
 }
 
 export function TechPill({ name }: { name: string }) {
@@ -68,6 +67,7 @@ export function BudgetChips({ ranges, raw }: { ranges?: BudgetRange[]; raw?: str
 export function BLRBadge({ value }: { value?: boolean | null }) {
   if (value === true) return <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 5, background: "rgba(99,102,241,0.14)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)", fontWeight: 600 }}>🏙 In BLR</span>;
   if (value === false) return <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 5, background: "rgba(245,158,11,0.12)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.3)", fontWeight: 600 }}>✈️ Out BLR</span>;
+  if (value === null) return <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 5, background: "rgba(107,114,128,0.12)", color: "#9ca3af", border: "1px solid rgba(107,114,128,0.3)", fontWeight: 600 }}>❓ Unknown</span>;
   return null;
 }
 
@@ -75,7 +75,7 @@ export function BLRToggle({ value, onChange }: { value?: boolean | null; onChang
   const opts = [
     { v: true as boolean | null, label: "🏙 In", ac: "#818cf8", ab: "rgba(99,102,241,0.18)", abr: "rgba(99,102,241,0.38)" },
     { v: false as boolean | null, label: "✈️ Out", ac: "#fbbf24", ab: "rgba(245,158,11,0.14)", abr: "rgba(245,158,11,0.3)" },
-    { v: null as boolean | null, label: "❓", ac: "#64748b", ab: "rgba(100,116,139,0.1)", abr: "rgba(100,116,139,0.28)" },
+    { v: null as boolean | null, label: "❓ Unknown", ac: "#9ca3af", ab: "rgba(107,114,128,0.14)", abr: "rgba(107,114,128,0.3)" },
   ];
   return <div style={{ display: "flex", gap: 3 }}>{opts.map(({ v, label, ac, ab, abr }) => (
     <button key={String(v)} onClick={e => { e.stopPropagation(); onChange(v); }}

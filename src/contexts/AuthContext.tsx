@@ -6,6 +6,8 @@ interface AuthUser {
   email: string;
   fullName: string;
   role: string;
+  phone?: string;
+  zones?: string[];
   zoneName?: string;
 }
 
@@ -31,7 +33,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const checkUser = async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      const res = await fetch('/api/auth/me', { cache: 'no-store' });
       const data = await res.json();
       if (data.user) {
         setUser({
@@ -40,6 +42,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email: data.user.email,
           fullName: data.user.fullName,
           role: data.user.role,
+          phone: data.user.phone,
+          zones: data.user.zones || [],
           zoneName: data.user.zoneName,
         });
       } else {

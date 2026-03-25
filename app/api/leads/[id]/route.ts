@@ -34,7 +34,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const lead = await Lead.findById(id);
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-
+    // Members can only edit leads currently assigned to them
+    if (authUser.role === 'member') {
+      const isAssigned = String(lead.assignedMemberId || '') === authUser.id;
+      if (!isAssigned) return NextResponse.json({ error: 'You can only modify leads assigned to you' }, { status: 403 });
+    }
 
     if (!['super_admin', 'manager', 'admin', 'member'].includes(authUser.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

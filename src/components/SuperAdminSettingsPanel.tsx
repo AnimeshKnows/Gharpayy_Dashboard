@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -11,108 +12,563 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, Trash2, KeyRound, Loader2, Pencil } from 'lucide-react';
+import { Plus, Loader2, MoreVertical, UserPlus, Users, Shield, User, ChevronRight, KeyRound, Pencil, MapPin } from 'lucide-react';
 import { LoginActivityTab, LeadActivityTab } from '@/components/ActivityTabs';
+import { useAuth } from '@/contexts/AuthContext';
+
+/* ========== Types ========== */
+interface UserItem {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  username: string;
+  role: string;
+  status: string;
+  zones: string[];
+  adminId?: any;
+  managerId?: any;
+  invitedAt?: string;
+  deletedAt?: string;
+  createdAt: string;
+}
+
+interface RoleUser {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  username: string;
+  role: string;
+  zones: string[];
+  admins?: RoleUser[];
+  members?: RoleUser[];
+  adminIds?: any[];
+  managerId?: any;
+}
 
 interface ZoneOption {
   id: string;
   name: string;
 }
 
-interface Manager {
-  id: string;
-  username: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  admins: Admin[];
-  createdAt: string;
-}
-
-interface Admin {
-  id: string;
-  username: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  zones: string[];
-  role: string;
-  members: Member[];
-}
-
-interface Member {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  username: string;
-  zones: string[];
-  adminId?: any;
-}
-
+/* ========== Main Panel ========== */
 export function SuperAdminSettingsPanel() {
-  const [managers, setManagers] = useState<Manager[]>([]);
-  const [admins, setAdmins] = useState<Admin[]>([]);
-  const [members, setAgents] = useState<Member[]>([]);
-  const [zones, setZones] = useState<ZoneOption[]>([]);
+  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'profiles' | 'activity'>('users');
+
+  return (
+    <div className="space-y-6">
+      {/* Top-level Tabs */}
+      <div className="flex gap-1 border-b">
+        {[
+          { id: 'users', label: 'Users', icon: Users },
+          { id: 'roles', label: 'Roles', icon: Shield },
+          { id: 'profiles', label: 'Profiles', icon: User },
+          { id: 'activity', label: 'Activity', icon: KeyRound },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center gap-2 px-4 py-2.5 font-medium text-sm border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === tab.id
+                ? 'border-accent text-accent'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <tab.icon size={15} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'users' && <UsersTab />}
+      {activeTab === 'roles' && <RolesTab />}
+      {activeTab === 'profiles' && <ProfilesTab />}
+      {activeTab === 'activity' && <ActivityTab />}
+    </div>
+  );
+}
+
+/* ========== USERS TAB ========== */
+function UsersTab() {
+  const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'managers' | 'admins' | 'members' | 'login_activity' | 'lead_activity'>('managers');
+  const [subTab, setSubTab] = useState<'active' | 'inactive' | 'invited' | 'deleted'>('active');
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [managers, setManagers] = useState<RoleUser[]>([]);
+  const [admins, setAdmins] = useState<RoleUser[]>([]);
+  const [zones, setZones] = useState<ZoneOption[]>([]);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/users');
+      if (res.ok) setUsers(await res.json());
+    } catch {
+      toast.error('Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSupportData = async () => {
+    try {
+      const [mRes, aRes, zRes] = await Promise.all([
+        fetch('/api/managers'),
+        fetch('/api/admins'),
+        fetch('/api/zones'),
+      ]);
+      if (mRes.ok) setManagers(await mRes.json());
+      if (aRes.ok) setAdmins(await aRes.json());
+      if (zRes.ok) {
+        const raw = await zRes.json();
+        setZones((raw || []).map((z: any) => ({ id: z.id || z._id, name: z.name })));
+      }
+    } catch {
+      console.error('Failed to load support data');
+    }
+  };
 
   useEffect(() => {
-    loadData();
+    loadUsers();
+    loadSupportData();
   }, []);
+
+  const filteredUsers = users.filter((u) => (u.status || 'active') === subTab);
+
+  const handleStatusChange = async (userId: string, action: 'activate' | 'deactivate' | 'delete') => {
+    try {
+      const res = await fetch(`/api/users/${userId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast.success(`User ${action}d successfully`);
+      loadUsers();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleCancelInvite = async (userId: string) => {
+    if (!confirm('Cancel this invitation? The user will be permanently removed.')) return;
+    try {
+      const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast.success('Invitation cancelled');
+      loadUsers();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const statusCounts = {
+    active: users.filter((u) => (u.status || 'active') === 'active').length,
+    inactive: users.filter((u) => u.status === 'inactive').length,
+    invited: users.filter((u) => u.status === 'invited').length,
+    deleted: users.filter((u) => u.status === 'deleted').length,
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Invite User Button + Sub-tabs */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex gap-1 bg-secondary/50 rounded-lg p-1">
+          {(['active', 'inactive', 'invited', 'deleted'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setSubTab(tab)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors capitalize flex items-center gap-1.5 ${
+                subTab === tab
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab}
+              {statusCounts[tab] > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                  subTab === tab ? 'bg-accent/20 text-accent' : 'bg-muted text-muted-foreground'
+                }`}>
+                  {statusCounts[tab]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="gap-1.5">
+              <UserPlus size={14} /> Invite User
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Invite New User</DialogTitle>
+            </DialogHeader>
+            <InviteUserForm
+              managers={managers}
+              admins={admins}
+              zones={zones}
+              onSuccess={() => {
+                setShowInviteDialog(false);
+                loadUsers();
+                loadSupportData();
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Users List */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin" />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filteredUsers.map((user) => (
+            <div key={user.id} className="flex items-center justify-between p-3 rounded-xl bg-card border hover:bg-secondary/30 transition-colors">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
+                  <span className="text-accent font-semibold text-sm">
+                    {user.fullName?.charAt(0)?.toUpperCase() || '?'}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-foreground truncate">{user.fullName}</p>
+                    <Badge variant="secondary" className="text-[10px] capitalize shrink-0">
+                      {user.role}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  {user.phone && <p className="text-[11px] text-muted-foreground">{user.phone}</p>}
+                </div>
+              </div>
+
+              {/* 3-dot menu */}
+              {subTab !== 'deleted' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <MoreVertical size={16} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {subTab === 'active' && (
+                      <>
+                        <DropdownMenuItem
+                          onClick={() => handleStatusChange(user.id, 'deactivate')}
+                          className="text-yellow-600"
+                        >
+                          Deactivate
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleStatusChange(user.id, 'delete')}
+                          className="text-destructive"
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    {subTab === 'inactive' && (
+                      <>
+                        <DropdownMenuItem
+                          onClick={() => handleStatusChange(user.id, 'activate')}
+                          className="text-green-600"
+                        >
+                          Activate
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleStatusChange(user.id, 'delete')}
+                          className="text-destructive"
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    {subTab === 'invited' && (
+                      <DropdownMenuItem
+                        onClick={() => handleCancelInvite(user.id)}
+                        className="text-destructive"
+                      >
+                        Cancel Invitation
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          ))}
+          {filteredUsers.length === 0 && (
+            <p className="text-center text-muted-foreground text-sm py-8">
+              No {subTab} users
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ========== INVITE USER FORM ========== */
+function InviteUserForm({
+  managers,
+  admins,
+  zones,
+  onSuccess,
+}: {
+  managers: RoleUser[];
+  admins: RoleUser[];
+  zones: ZoneOption[];
+  onSuccess: () => void;
+}) {
+  const [form, setForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    password: '',
+    role: '',
+  });
+  const [selectedZones, setSelectedZones] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!form.fullName || !form.email || !form.phone || !form.role || !form.password) {
+      toast.error('All fields are required');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          zones: selectedZones,
+        }),
+      });
+
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast.success('User invited successfully! Invitation email sent.');
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Full Name *</Label>
+          <Input
+            value={form.fullName}
+            onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+            placeholder="John Doe"
+            className="text-xs"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Email *</Label>
+          <Input
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="john@example.com"
+            className="text-xs"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Phone *</Label>
+          <Input
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            placeholder="+91..."
+            className="text-xs"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Password *</Label>
+          <Input
+            type="password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            placeholder="Initial password"
+            className="text-xs"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Role *</Label>
+        <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+          <SelectTrigger className="text-xs">
+            <SelectValue placeholder="Select role..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="manager">Manager</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+            <SelectItem value="member">Member</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Zone Selection for Admin and Member */}
+      {(form.role === 'admin' || form.role === 'member') && zones.length > 0 && (
+        <div className="space-y-1.5">
+          <Label className="text-xs flex items-center gap-1.5">
+            <MapPin size={12} />
+            Assign Zones *
+          </Label>
+          <div className="grid grid-cols-2 gap-2">
+            {zones.map((zone) => (
+              <label key={zone.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedZones.includes(zone.name)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedZones([...selectedZones, zone.name]);
+                    } else {
+                      setSelectedZones(selectedZones.filter((z) => z !== zone.name));
+                    }
+                  }}
+                  className="rounded"
+                />
+                {zone.name}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Button onClick={handleSubmit} disabled={saving} className="w-full gap-1.5">
+        <UserPlus size={14} />
+        {saving ? 'Sending Invitation...' : 'Invite User'}
+      </Button>
+    </div>
+  );
+}
+
+/* ========== ROLES TAB ========== */
+function RolesTab() {
+  const [roleTab, setRoleTab] = useState<'managers' | 'admins' | 'members'>('managers');
+  const [managers, setManagers] = useState<RoleUser[]>([]);
+  const [admins, setAdmins] = useState<RoleUser[]>([]);
+  const [members, setMembers] = useState<RoleUser[]>([]);
+  const [zones, setZones] = useState<ZoneOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ fullName: '', email: '', phone: '' });
+  const [updating, setUpdating] = useState(false);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [managersRes, adminsRes, agentsRes] = await Promise.all([
+      const [mRes, aRes, memRes, zRes] = await Promise.all([
         fetch('/api/managers'),
         fetch('/api/admins'),
         fetch('/api/members'),
+        fetch('/api/zones'),
       ]);
-
-      if (managersRes.ok) setManagers(await managersRes.json());
-      if (adminsRes.ok) setAdmins(await adminsRes.json());
-      if (agentsRes.ok) setAgents(await agentsRes.json());
-
-      const zonesRes = await fetch('/api/zones');
-      if (zonesRes.ok) {
-        const rawZones = await zonesRes.json();
-        const zoneOptions = (rawZones || []).map((z: any) => ({
-          id: z.id || z._id,
-          name: z.name,
-        }));
-        setZones(zoneOptions);
+      if (mRes.ok) setManagers(await mRes.json());
+      if (aRes.ok) setAdmins(await aRes.json());
+      if (memRes.ok) setMembers(await memRes.json());
+      if (zRes.ok) {
+        const raw = await zRes.json();
+        setZones((raw || []).map((z: any) => ({ id: z.id || z._id, name: z.name })));
       }
-    } catch (err: any) {
+    } catch {
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleStartEdit = (user: any) => {
+    setEditingId(user.id);
+    setEditForm({
+      fullName: user.fullName || user.name || '',
+      email: user.email || '',
+      phone: user.phone || '',
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return;
+    try {
+      setUpdating(true);
+      const res = await fetch(`/api/users/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast.success('Updated successfully');
+      setEditingId(null);
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleResetPassword = async (id: string, name: string) => {
+    const password = prompt(`Enter new password for ${name}:`);
+    if (!password) return;
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast.success('Password updated');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Tabs */}
-      <div className="flex gap-2 border-b overflow-x-auto pb-1 scrollbar-hide">
-        {[
-          { id: 'managers', label: 'Managers' },
-          { id: 'admins', label: 'Admins' },
-          { id: 'members', label: 'Members' },
-          { id: 'login_activity', label: 'Login Activity' },
-          { id: 'lead_activity', label: 'Lead Activity' }
-        ].map((tab) => (
+    <div className="space-y-4">
+      {/* Role sub-tabs */}
+      <div className="flex gap-1 bg-secondary/50 rounded-lg p-1">
+        {(['managers', 'admins', 'members'] as const).map((tab) => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'border-accent text-accent'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+            key={tab}
+            onClick={() => { setRoleTab(tab); setExpandedId(null); setEditingId(null); }}
+            className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors capitalize ${
+              roleTab === tab
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {tab.label}
+            {tab}
           </button>
         ))}
       </div>
@@ -122,812 +578,318 @@ export function SuperAdminSettingsPanel() {
           <Loader2 className="animate-spin" />
         </div>
       ) : (
-        <>
-          {activeTab === 'managers' && <ManagersSection managers={managers} onRefresh={loadData} />}
-          {activeTab === 'admins' && <AdminsSection admins={admins} zones={zones} onRefresh={loadData} />}
-          {activeTab === 'members' && <AgentsSection members={members} admins={admins} zones={zones} onRefresh={loadData} />}
-          {activeTab === 'login_activity' && <LoginActivityTab />}
-          {activeTab === 'lead_activity' && <LeadActivityTab />}
-        </>
+        <div className="space-y-2">
+          {/* Managers */}
+          {roleTab === 'managers' && managers.map((manager) => (
+            <div key={manager.id} className="border rounded-xl bg-card overflow-hidden">
+              <button
+                onClick={() => setExpandedId(expandedId === manager.id ? null : manager.id)}
+                className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                    <span className="text-blue-500 font-semibold text-sm">
+                      {manager.fullName?.charAt(0)?.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-medium">{manager.fullName}</p>
+                    <p className="text-xs text-muted-foreground">{manager.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-[10px]">
+                    {manager.admins?.length || 0} Admins
+                  </Badge>
+                  <ChevronRight size={16} className={`transform transition-transform ${expandedId === manager.id ? 'rotate-90' : ''}`} />
+                </div>
+              </button>
+
+              {expandedId === manager.id && (
+                <div className="border-t p-4 space-y-4 bg-secondary/10">
+                  {/* Manager Details */}
+                  {editingId === manager.id ? (
+                    <EditForm form={editForm} setForm={setEditForm} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} saving={updating} />
+                  ) : (
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Phone: <span className="text-foreground">{manager.phone || 'N/A'}</span></p>
+                        <p className="text-xs text-muted-foreground">Username: <span className="text-foreground">{manager.username}</span></p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => handleStartEdit(manager)}><Pencil size={12} /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleResetPassword(manager.id, manager.fullName)}><KeyRound size={12} /></Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Admins under this manager */}
+                  {manager.admins && manager.admins.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">Admins under {manager.fullName}</p>
+                      {manager.admins.map((admin) => (
+                        <div key={admin.id} className="bg-background rounded-lg p-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium">{admin.fullName}</p>
+                            <p className="text-[11px] text-muted-foreground">{admin.email}</p>
+                            {admin.zones && admin.zones.length > 0 && (
+                              <div className="flex items-center gap-1 mt-1">
+                                <MapPin size={10} className="text-muted-foreground" />
+                                <p className="text-[10px] text-muted-foreground">{admin.zones.join(', ')}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Admins */}
+          {roleTab === 'admins' && admins.map((admin) => (
+            <div key={admin.id} className="border rounded-xl bg-card overflow-hidden">
+              <button
+                onClick={() => setExpandedId(expandedId === admin.id ? null : admin.id)}
+                className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <span className="text-green-500 font-semibold text-sm">
+                      {admin.fullName?.charAt(0)?.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-medium">{admin.fullName}</p>
+                    <p className="text-xs text-muted-foreground">{admin.email}</p>
+                  </div>
+                </div>
+              <div className="flex items-center gap-2">
+                  {admin.zones && admin.zones.length > 0 && (
+                    <Badge variant="outline" className="text-[10px]">{admin.zones.length} Zones</Badge>
+                  )}
+                  {(() => {
+                    const matchingMembers = members.filter(m => 
+                      m.zones && admin.zones && m.zones.some(mz => admin.zones!.includes(mz))
+                    );
+                    return (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {matchingMembers.length} Members
+                      </Badge>
+                    );
+                  })()}
+                  <ChevronRight size={16} className={`transform transition-transform ${expandedId === admin.id ? 'rotate-90' : ''}`} />
+                </div>
+              </button>
+
+              {expandedId === admin.id && (
+                <div className="border-t p-4 space-y-4 bg-secondary/10">
+                  {editingId === admin.id ? (
+                    <EditForm form={editForm} setForm={setEditForm} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} saving={updating} />
+                  ) : (
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Phone: <span className="text-foreground">{admin.phone || 'N/A'}</span></p>
+                        <p className="text-xs text-muted-foreground">Username: <span className="text-foreground">{admin.username}</span></p>
+                        <p className="text-xs text-muted-foreground">Zones: <span className="text-foreground">{admin.zones?.join(', ') || 'None'}</span></p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => handleStartEdit(admin)}><Pencil size={12} /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleResetPassword(admin.id, admin.fullName)}><KeyRound size={12} /></Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(() => {
+                    const matchingMembers = members.filter(m => 
+                      m.zones && admin.zones && m.zones.some(mz => admin.zones!.includes(mz))
+                    );
+                    return (
+                      <>
+                        {matchingMembers.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground">Members</p>
+                            {matchingMembers.map((member) => (
+                              <div key={member.id} className="bg-background rounded-lg p-3 flex items-center justify-between">
+                                <div>
+                                  <p className="text-xs font-medium">{member.fullName || (member as any).name}</p>
+                                  <p className="text-[11px] text-muted-foreground">{member.email}</p>
+                                  {member.zones && member.zones.length > 0 && (
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <MapPin size={10} className="text-muted-foreground" />
+                                      <p className="text-[10px] text-muted-foreground">{member.zones.join(', ')}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {matchingMembers.length === 0 && (
+                          <p className="text-xs text-muted-foreground italic">No members in matching zones</p>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Members */}
+          {roleTab === 'members' && members.map((member) => (
+            <div key={member.id} className="border rounded-xl bg-card overflow-hidden">
+              <button
+                onClick={() => setExpandedId(expandedId === member.id ? null : member.id)}
+                className="w-full flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                    <span className="text-purple-500 font-semibold text-sm">
+                      {(member.fullName || (member as any).name)?.charAt(0)?.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-medium">{member.fullName || (member as any).name}</p>
+                    <p className="text-xs text-muted-foreground">{member.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {member.zones && member.zones.length > 0 && (
+                    <Badge variant="outline" className="text-[10px]">{member.zones.join(', ')}</Badge>
+                  )}
+                  <ChevronRight size={16} className={`transform transition-transform ${expandedId === member.id ? 'rotate-90' : ''}`} />
+                </div>
+              </button>
+
+              {expandedId === member.id && (
+                <div className="border-t p-4 space-y-4 bg-secondary/10">
+                  {editingId === member.id ? (
+                    <EditForm form={editForm} setForm={setEditForm} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} saving={updating} />
+                  ) : (
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Phone: <span className="text-foreground">{member.phone || 'N/A'}</span></p>
+                        <p className="text-xs text-muted-foreground">Username: <span className="text-foreground">{member.username}</span></p>
+                        <p className="text-xs text-muted-foreground">Zones: <span className="text-foreground">{member.zones?.join(', ') || 'None'}</span></p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => handleStartEdit(member)}><Pencil size={12} /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleResetPassword(member.id, member.fullName || (member as any).name)}><KeyRound size={12} /></Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Empty states */}
+          {roleTab === 'managers' && managers.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No managers yet</p>}
+          {roleTab === 'admins' && admins.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No admins yet</p>}
+          {roleTab === 'members' && members.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No members yet</p>}
+        </div>
       )}
     </div>
   );
 }
 
-function ManagersSection({ managers, onRefresh }: { managers: Manager[]; onRefresh: () => void }) {
-  const [showForm, setShowForm] = useState(false);
-  const [selectedAdmins, setSelectedAdmins] = useState<string[]>([]);
-  const [form, setForm] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    username: '',
-    password: '',
-  });
-  const [allAdmins, setAllAdmins] = useState<Admin[]>([]);
+/* ========== EDIT FORM (inline) ========== */
+function EditForm({
+  form,
+  setForm,
+  onSave,
+  onCancel,
+  saving,
+}: {
+  form: { fullName: string; email: string; phone: string };
+  setForm: (f: any) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <Label className="text-xs">Full Name</Label>
+          <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} className="text-xs" />
+        </div>
+        <div>
+          <Label className="text-xs">Email</Label>
+          <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="text-xs" />
+        </div>
+        <div>
+          <Label className="text-xs">Phone</Label>
+          <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="text-xs" />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Button size="sm" onClick={onSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+        <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
+/* ========== PROFILES TAB ========== */
+function ProfilesTab() {
+  const { user } = useAuth();
+  const [profileUser, setProfileUser] = useState<any>(user || {});
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    username: '',
-  });
-  const [editAdminIds, setEditAdminIds] = useState<string[]>([]);
-  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    const fetchAllAdmins = async () => {
+    const loadProfile = async () => {
       try {
-        const res = await fetch('/api/admins');
-        if (res.ok) setAllAdmins(await res.json());
-      } catch (err) {
-        console.error('Failed to load admins');
-      }
+        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        const data = await res.json();
+        if (data?.user) {
+          setProfileUser(data.user);
+          return;
+        }
+      } catch {}
+      setProfileUser(user || {});
     };
-    fetchAllAdmins();
-  }, []);
 
-  const handleAddManager = async () => {
-    if (!form.fullName || !form.email || !form.phone || !form.username || !form.password) {
-      toast.error('All fields are required');
+    loadProfile();
+  }, [user]);
+
+  const effectiveUser = profileUser || user || {};
+  const effectiveZones = Array.isArray(effectiveUser?.zones) && effectiveUser.zones.length > 0
+    ? effectiveUser.zones
+    : (effectiveUser?.zoneName ? [effectiveUser.zoneName] : []);
+
+  const handlePasswordChange = async () => {
+    if (!password) {
+      toast.error('Please enter a new password');
+      return;
+    }
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match');
       return;
     }
 
     try {
       setSaving(true);
-      const res = await fetch('/api/managers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          adminIds: selectedAdmins,
-        }),
-      });
-
-      if (!res.ok) throw new Error((await res.json()).error);
-
-      toast.success('Manager created successfully');
-      setShowForm(false);
-      setForm({ fullName: '', email: '', phone: '', username: '', password: '' });
-      setSelectedAdmins([]);
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteManager = async (id: string) => {
-    if (!confirm('Are you sure?')) return;
-
-    try {
-      const res = await fetch(`/api/managers/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Manager deleted');
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
-  const handleResetPassword = async (id: string, name: string) => {
-    const password = prompt(`Enter new password for ${name}:`);
-    if (!password) return;
-
-    try {
-      const res = await fetch(`/api/managers/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-
-      if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Password updated');
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
-  const handleEditManager = (manager: Manager) => {
-    setEditingId(manager.id);
-    setEditForm({
-      fullName: manager.fullName || '',
-      email: manager.email || '',
-      phone: manager.phone || '',
-      username: manager.username || '',
-    });
-    setEditAdminIds((manager.admins || []).map((admin) => admin.id));
-  };
-
-  const handleUpdateManager = async () => {
-    if (!editingId) return;
-    if (!editForm.fullName || !editForm.email || !editForm.phone || !editForm.username) {
-      toast.error('All fields are required');
-      return;
-    }
-
-    try {
-      setUpdating(true);
-      const res = await fetch(`/api/managers/${editingId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: editForm.fullName.trim(),
-          email: editForm.email.trim(),
-          phone: editForm.phone.trim(),
-          username: editForm.username.trim(),
-          adminIds: editAdminIds,
-        }),
-      });
-
-      if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Manager updated');
-      setEditingId(null);
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Add Manager Form */}
-      {showForm && (
-        <div className="border rounded-lg p-4 bg-secondary/30">
-          <h3 className="font-semibold mb-4">Add New Manager</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-xs">Full Name *</Label>
-              <Input
-                value={form.fullName}
-                onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                placeholder="Manager name"
-                className="text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Email *</Label>
-              <Input
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="manager@example.com"
-                className="text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Phone *</Label>
-              <Input
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="+91..."
-                className="text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Username *</Label>
-              <Input
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-                placeholder="manager@gharpayy"
-                className="text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Password *</Label>
-              <Input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="Initial password"
-                className="text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Select Admins</Label>
-              <Select
-                value={selectedAdmins[0] || ''}
-                onValueChange={(value) => {
-                  if (!selectedAdmins.includes(value)) {
-                    setSelectedAdmins([...selectedAdmins, value]);
-                  }
-                }}
-              >
-                <SelectTrigger className="text-xs">
-                  <SelectValue placeholder="Select admins..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {allAdmins.map((admin) => (
-                    <SelectItem key={admin.id} value={admin.id}>
-                      {admin.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {selectedAdmins.length > 0 && (
-            <div className="mt-3">
-              <p className="text-xs font-medium mb-2">Selected Admins:</p>
-              <div className="flex flex-wrap gap-2">
-                {selectedAdmins.map((adminId) => {
-                  const admin = allAdmins.find((a) => a.id === adminId);
-                  return (
-                    <div
-                      key={adminId}
-                      className="bg-accent/20 text-accent px-2 py-1 rounded text-xs flex items-center gap-1"
-                    >
-                      {admin?.fullName}
-                      <button
-                        onClick={() =>
-                          setSelectedAdmins(selectedAdmins.filter((id) => id !== adminId))
-                        }
-                        className="hover:text-accent/70"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-2 mt-4">
-            <Button size="sm" onClick={handleAddManager} disabled={saving}>
-              <Plus size={14} className="mr-1" />
-              {saving ? 'Creating...' : 'Create Manager'}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setShowForm(false);
-                setSelectedAdmins([]);
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {!showForm && (
-        <Button size="sm" onClick={() => setShowForm(true)}>
-          <Plus size={14} className="mr-1" /> Add Manager
-        </Button>
-      )}
-
-      {/* Managers List */}
-      <div className="space-y-3">
-        {managers.map((manager) => (
-          <div key={manager.id} className="border rounded-lg p-4 bg-card">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h4 className="font-semibold">{manager.fullName}</h4>
-                <p className="text-xs text-muted-foreground">Email: {manager.email}</p>
-                <p className="text-xs text-muted-foreground">Phone: {manager.phone}</p>
-                <p className="text-xs text-muted-foreground">Username: {manager.username}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => handleEditManager(manager)}>
-                  <Pencil size={12} />
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleResetPassword(manager.id, manager.fullName)}>
-                  <KeyRound size={12} />
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => handleDeleteManager(manager.id)}>
-                  <Trash2 size={12} />
-                </Button>
-              </div>
-            </div>
-
-            {manager.admins.length > 0 && (
-              <div className="mt-4 pt-4 border-t space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Assigned Admins ({manager.admins.length})</p>
-                {manager.admins.map((admin) => (
-                  <div key={admin.id} className="bg-secondary/50 p-2 rounded text-xs">
-                    <p className="font-medium">{admin.fullName}</p>
-                    <p className="text-[11px] text-muted-foreground">Zones: {admin.zones.join(', ')}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {editingId === manager.id && (
-              <div className="mt-4 pt-4 border-t space-y-4">
-                <h5 className="text-xs font-semibold">Edit Manager</h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Full Name *</Label>
-                    <Input
-                      value={editForm.fullName}
-                      onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Email *</Label>
-                    <Input
-                      value={editForm.email}
-                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Phone *</Label>
-                    <Input
-                      value={editForm.phone}
-                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Username *</Label>
-                    <Input
-                      value={editForm.username}
-                      onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs">Assign Admins</Label>
-                  {allAdmins.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                      {allAdmins.map((admin) => (
-                        <label key={admin.id} className="flex items-center gap-2 text-xs cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={editAdminIds.includes(admin.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setEditAdminIds([...editAdminIds, admin.id]);
-                              } else {
-                                setEditAdminIds(editAdminIds.filter((id) => id !== admin.id));
-                              }
-                            }}
-                            className="rounded"
-                          />
-                          {admin.fullName}
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground mt-2">No admins available.</p>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={handleUpdateManager} disabled={updating}>
-                    {updating ? 'Saving...' : 'Save Changes'}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-        {managers.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No managers created yet</p>}
-      </div>
-    </div>
-  );
-}
-
-function AdminsSection({ admins, zones, onRefresh }: { admins: Admin[]; zones: ZoneOption[]; onRefresh: () => void }) {
-  const [showForm, setShowForm] = useState(false);
-  const [selectedZones, setSelectedZones] = useState<string[]>([]);
-  const [form, setForm] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    username: '',
-    password: '',
-  });
-  const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    username: '',
-  });
-  const [editZones, setEditZones] = useState<string[]>([]);
-  const [updating, setUpdating] = useState(false);
-
-  const handleAddAdmin = async () => {
-    if (!form.fullName || !form.email || !form.phone || !form.username || !form.password || selectedZones.length === 0) {
-      toast.error('All fields and at least one zone are required');
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const res = await fetch('/api/admins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          zones: selectedZones,
-        }),
-      });
-
-      if (!res.ok) throw new Error((await res.json()).error);
-
-      toast.success('Admin created successfully');
-      setShowForm(false);
-      setForm({ fullName: '', email: '', phone: '', username: '', password: '' });
-      setSelectedZones([]);
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteAdmin = async (id: string) => {
-    if (!confirm('Are you sure?')) return;
-
-    try {
-      const res = await fetch(`/api/admins/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Admin deleted');
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
-  const handleResetPassword = async (id: string, name: string) => {
-    const password = prompt(`Enter new password for ${name}:`);
-    if (!password) return;
-
-    try {
-      const res = await fetch(`/api/admins/${id}`, {
+      const res = await fetch('/api/auth/update', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Password update failed');
 
-      if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Password updated');
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
-  const handleEditAdmin = (admin: Admin) => {
-    setEditingId(admin.id);
-    setEditForm({
-      fullName: admin.fullName || '',
-      email: admin.email || '',
-      phone: admin.phone || '',
-      username: admin.username || '',
-    });
-    setEditZones(admin.zones || []);
-  };
-
-  const handleUpdateAdmin = async () => {
-    if (!editingId) return;
-    if (!editForm.fullName || !editForm.email || !editForm.phone || !editForm.username) {
-      toast.error('All fields are required');
-      return;
-    }
-    if (editZones.length === 0) {
-      toast.error('At least one zone is required');
-      return;
-    }
-
-    try {
-      setUpdating(true);
-      const res = await fetch(`/api/admins/${editingId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: editForm.fullName.trim(),
-          email: editForm.email.trim(),
-          phone: editForm.phone.trim(),
-          username: editForm.username.trim(),
-          zones: editZones,
-        }),
-      });
-
-      if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Admin updated');
-      setEditingId(null);
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Add Admin Form */}
-      {showForm && (
-        <div className="border rounded-lg p-4 bg-secondary/30">
-          <h3 className="font-semibold mb-4">Add New Admin</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-xs">Full Name *</Label>
-              <Input
-                value={form.fullName}
-                onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                placeholder="Admin name"
-                className="text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Email *</Label>
-              <Input
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="admin@example.com"
-                className="text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Phone *</Label>
-              <Input
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="+91..."
-                className="text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Username *</Label>
-              <Input
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-                placeholder="admin@gharpayy"
-                className="text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Password *</Label>
-              <Input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="Initial password"
-                className="text-xs"
-              />
-            </div>
-          </div>
-
-          {/* Zone Selection */}
-          <div className="mt-4">
-            <Label className="text-xs">Select Zones *</Label>
-            {zones.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {zones.map((zone) => (
-                  <label key={zone.id} className="flex items-center gap-2 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedZones.includes(zone.name)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedZones([...selectedZones, zone.name]);
-                        } else {
-                          setSelectedZones(selectedZones.filter((z) => z !== zone.name));
-                        }
-                      }}
-                      className="rounded"
-                    />
-                    {zone.name}
-                  </label>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground mt-2">No zones available.</p>
-            )}
-          </div>
-
-          <div className="flex gap-2 mt-4">
-            <Button size="sm" onClick={handleAddAdmin} disabled={saving || zones.length === 0}>
-              <Plus size={14} className="mr-1" />
-              {saving ? 'Creating...' : 'Create Admin'}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setShowForm(false);
-                setSelectedZones([]);
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {!showForm && (
-        <Button size="sm" onClick={() => setShowForm(true)}>
-          <Plus size={14} className="mr-1" /> Add Admin
-        </Button>
-      )}
-
-      {/* Admins List */}
-      <div className="space-y-3">
-        {admins.map((admin) => (
-          <div key={admin.id} className="border rounded-lg p-4 bg-card">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h4 className="font-semibold">{admin.fullName}</h4>
-                <p className="text-xs text-muted-foreground">Email: {admin.email}</p>
-                <p className="text-xs text-muted-foreground">Phone: {admin.phone}</p>
-                <p className="text-xs text-muted-foreground">Username: {admin.username}</p>
-                <p className="text-xs text-muted-foreground">Zones: {admin.zones.join(', ')}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => handleEditAdmin(admin)}>
-                  <Pencil size={12} />
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleResetPassword(admin.id, admin.fullName)}>
-                  <KeyRound size={12} />
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => handleDeleteAdmin(admin.id)}>
-                  <Trash2 size={12} />
-                </Button>
-              </div>
-            </div>
-
-            {admin.members && admin.members.length > 0 && (
-              <div className="mt-4 pt-4 border-t space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Assigned Members ({admin.members.length})</p>
-                {admin.members.map((member) => (
-                  <div key={member.id} className="bg-secondary/50 p-2 rounded text-xs">
-                    <p className="font-medium">{member.name}</p>
-                    <p className="text-[11px] text-muted-foreground">Zones: {member.zones.join(', ')}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {editingId === admin.id && (
-              <div className="mt-4 pt-4 border-t space-y-4">
-                <h5 className="text-xs font-semibold">Edit Admin</h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Full Name *</Label>
-                    <Input
-                      value={editForm.fullName}
-                      onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Email *</Label>
-                    <Input
-                      value={editForm.email}
-                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Phone *</Label>
-                    <Input
-                      value={editForm.phone}
-                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Username *</Label>
-                    <Input
-                      value={editForm.username}
-                      onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs">Select Zones *</Label>
-                  {zones.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      {zones.map((zone) => (
-                        <label key={zone.id} className="flex items-center gap-2 text-xs cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={editZones.includes(zone.name)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setEditZones([...editZones, zone.name]);
-                              } else {
-                                setEditZones(editZones.filter((z) => z !== zone.name));
-                              }
-                            }}
-                            className="rounded"
-                          />
-                          {zone.name}
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground mt-2">No zones available.</p>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={handleUpdateAdmin} disabled={updating}>
-                    {updating ? 'Saving...' : 'Save Changes'}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-        {admins.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No admins created yet</p>}
-      </div>
-    </div>
-  );
-}
-
-function AgentsSection({ members, admins, zones, onRefresh }: { members: Member[]; admins: Admin[]; zones: ZoneOption[]; onRefresh: () => void }) {
-  const [showForm, setShowForm] = useState(false);
-  const [selectedZones, setSelectedZones] = useState<string[]>([]);
-  const [selectedAdmin, setSelectedAdmin] = useState<string>('');
-  const [form, setForm] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    username: '',
-    password: '',
-  });
-  const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    username: '',
-  });
-  const [editZones, setEditZones] = useState<string[]>([]);
-  const [editAdminId, setEditAdminId] = useState<string>('__none__');
-  const [updating, setUpdating] = useState(false);
-
-  const handleAddAgent = async () => {
-    if (!form.fullName || !form.email || !form.phone || !form.username || !form.password || selectedZones.length === 0) {
-      toast.error('All fields and at least one zone are required');
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const res = await fetch('/api/members', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          zones: selectedZones,
-          adminId: selectedAdmin || undefined,
-        }),
-      });
-
-      if (!res.ok) throw new Error((await res.json()).error);
-
-      toast.success('Member created successfully');
-      setShowForm(false);
-      setForm({ fullName: '', email: '', phone: '', username: '', password: '' });
-      setSelectedZones([]);
-      setSelectedAdmin('');
-      onRefresh();
+      toast.success('Password updated successfully');
+      setPassword('');
+      setConfirmPassword('');
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -935,331 +897,95 @@ function AgentsSection({ members, admins, zones, onRefresh }: { members: Member[
     }
   };
 
-  const handleDeleteAgent = async (id: string) => {
-    if (!confirm('Are you sure?')) return;
-
-    try {
-      const res = await fetch(`/api/members/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Member deleted');
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
-  const handleResetPassword = async (id: string, name: string) => {
-    const password = prompt(`Enter new password for ${name}:`);
-    if (!password) return;
-
-    try {
-      const res = await fetch(`/api/members/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-
-      if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Password updated');
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
-  const handleEditAgent = (member: Member) => {
-    setEditingId(member.id);
-    setEditForm({
-      fullName: member.name || '',
-      email: member.email || '',
-      phone: member.phone || '',
-      username: member.username || '',
-    });
-    setEditZones(member.zones || []);
-    const currentAdminId = typeof member.adminId === 'string' ? member.adminId : member.adminId?._id;
-    setEditAdminId(currentAdminId || '__none__');
-  };
-
-  const handleUpdateAgent = async () => {
-    if (!editingId) return;
-    if (!editForm.fullName || !editForm.email || !editForm.phone || !editForm.username) {
-      toast.error('All fields are required');
-      return;
-    }
-    if (editZones.length === 0) {
-      toast.error('At least one zone is required');
-      return;
-    }
-
-    try {
-      setUpdating(true);
-      const res = await fetch(`/api/members/${editingId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: editForm.fullName.trim(),
-          email: editForm.email.trim(),
-          phone: editForm.phone.trim(),
-          username: editForm.username.trim(),
-          zones: editZones,
-          adminId: editAdminId === '__none__' ? null : editAdminId,
-        }),
-      });
-
-      if (!res.ok) throw new Error((await res.json()).error);
-      toast.success('Member updated');
-      setEditingId(null);
-      onRefresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Add Member Form */}
-      {showForm && (
-        <div className="border rounded-lg p-4 bg-secondary/30">
-          <h3 className="font-semibold mb-4">Add New Member</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-xs">Full Name *</Label>
-              <Input
-                value={form.fullName}
-                onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                placeholder="Member name"
-                className="text-xs"
-              />
+    <div className="space-y-4">
+      {effectiveUser && (
+        <div className="max-w-lg space-y-4 border rounded-xl p-6 bg-card">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center">
+              <span className="text-accent font-bold text-xl">{effectiveUser.fullName?.charAt(0)?.toUpperCase()}</span>
             </div>
             <div>
-              <Label className="text-xs">Email *</Label>
-              <Input
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="member@example.com"
-                className="text-xs"
-              />
+              <h3 className="font-semibold text-foreground">{effectiveUser.fullName}</h3>
+              <Badge variant="secondary" className="text-[10px] capitalize mt-1">{effectiveUser.role?.replace('_', ' ')}</Badge>
             </div>
-            <div>
-              <Label className="text-xs">Phone *</Label>
-              <Input
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="+91..."
-                className="text-xs"
-              />
+          </div>
+          <div className="space-y-3 pt-2 border-t">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Full Name</Label>
+              <Input value={effectiveUser.fullName || ''} disabled className="text-xs bg-secondary" />
             </div>
-            <div>
-              <Label className="text-xs">Username *</Label>
-              <Input
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-                placeholder="member@gharpayy"
-                className="text-xs"
-              />
+            <div className="space-y-1.5">
+              <Label className="text-xs">Email</Label>
+              <Input value={effectiveUser.email || ''} disabled className="text-xs bg-secondary" />
             </div>
-            <div>
-              <Label className="text-xs">Password *</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Phone</Label>
+              <Input value={effectiveUser.phone || 'N/A'} disabled className="text-xs bg-secondary" />
+            </div>
+            {(effectiveUser.role === 'admin' || effectiveUser.role === 'member') && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Zones</Label>
+                <Input value={effectiveZones.length > 0 ? effectiveZones.join(', ') : 'N/A'} disabled className="text-xs bg-secondary" />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs">New Password</Label>
               <Input
                 type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="Initial password"
+                placeholder="Enter new password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="text-xs"
               />
             </div>
-            <div>
-              <Label className="text-xs">Assign Admin (Optional)</Label>
-              <Select value={selectedAdmin} onValueChange={setSelectedAdmin}>
-                <SelectTrigger className="text-xs">
-                  <SelectValue placeholder="Select an admin..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {admins.map((admin) => (
-                    <SelectItem key={admin.id} value={admin.id}>
-                      {admin.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Confirm New Password</Label>
+              <Input
+                type="password"
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="text-xs"
+              />
             </div>
-          </div>
-
-          {/* Zone Selection */}
-          <div className="mt-4">
-            <Label className="text-xs">Select Zones *</Label>
-            {zones.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {zones.map((zone) => (
-                  <label key={zone.id} className="flex items-center gap-2 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedZones.includes(zone.name)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedZones([...selectedZones, zone.name]);
-                        } else {
-                          setSelectedZones(selectedZones.filter((z) => z !== zone.name));
-                        }
-                      }}
-                      className="rounded"
-                    />
-                    {zone.name}
-                  </label>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground mt-2">No zones available.</p>
-            )}
-          </div>
-
-          <div className="flex gap-2 mt-4">
-            <Button size="sm" onClick={handleAddAgent} disabled={saving || zones.length === 0}>
-              <Plus size={14} className="mr-1" />
-              {saving ? 'Creating...' : 'Create Member'}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setShowForm(false);
-                setSelectedZones([]);
-                setSelectedAdmin('');
-              }}
-            >
-              Cancel
+            <Button onClick={handlePasswordChange} disabled={saving} className="w-full gap-1.5">
+              <KeyRound size={14} />
+              {saving ? 'Updating...' : 'Change Password'}
             </Button>
           </div>
         </div>
       )}
+    </div>
+  );
+}
 
-      {!showForm && (
-        <Button size="sm" onClick={() => setShowForm(true)}>
-          <Plus size={14} className="mr-1" /> Add Member
-        </Button>
-      )}
+function ActivityTab() {
+  const [activeSection, setActiveSection] = useState<'login_activity' | 'lead_activity'>('login_activity');
 
-      {/* Members List */}
-      <div className="space-y-3">
-        {members.map((member) => (
-          <div key={member.id} className="border rounded-lg p-4 bg-card">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h4 className="font-semibold">{member.name}</h4>
-                <p className="text-xs text-muted-foreground">Email: {member.email}</p>
-                <p className="text-xs text-muted-foreground">Phone: {member.phone}</p>
-                <p className="text-xs text-muted-foreground">Username: {member.username}</p>
-                <p className="text-xs text-muted-foreground">Zones: {member.zones.join(', ')}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => handleEditAgent(member)}>
-                  <Pencil size={12} />
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleResetPassword(member.id, member.name)}>
-                  <KeyRound size={12} />
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => handleDeleteAgent(member.id)}>
-                  <Trash2 size={12} />
-                </Button>
-              </div>
-            </div>
-
-            {editingId === member.id && (
-              <div className="mt-4 pt-4 border-t space-y-4">
-                <h5 className="text-xs font-semibold">Edit Member</h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Full Name *</Label>
-                    <Input
-                      value={editForm.fullName}
-                      onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Email *</Label>
-                    <Input
-                      value={editForm.email}
-                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Phone *</Label>
-                    <Input
-                      value={editForm.phone}
-                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Username *</Label>
-                    <Input
-                      value={editForm.username}
-                      onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Assign Admin (Optional)</Label>
-                    <Select value={editAdminId} onValueChange={setEditAdminId}>
-                      <SelectTrigger className="text-xs">
-                        <SelectValue placeholder="Select an admin..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Unassigned</SelectItem>
-                        {admins.map((admin) => (
-                          <SelectItem key={admin.id} value={admin.id}>
-                            {admin.fullName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs">Select Zones *</Label>
-                  {zones.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      {zones.map((zone) => (
-                        <label key={zone.id} className="flex items-center gap-2 text-xs cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={editZones.includes(zone.name)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setEditZones([...editZones, zone.name]);
-                              } else {
-                                setEditZones(editZones.filter((z) => z !== zone.name));
-                              }
-                            }}
-                            className="rounded"
-                          />
-                          {zone.name}
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground mt-2">No zones available.</p>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={handleUpdateAgent} disabled={updating}>
-                    {updating ? 'Saving...' : 'Save Changes'}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 bg-secondary/50 rounded-lg p-1">
+        {[
+          { id: 'login_activity', label: 'Login Activity' },
+          { id: 'lead_activity', label: 'Lead Activity' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveSection(tab.id as any)}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              activeSection === tab.id
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab.label}
+          </button>
         ))}
-        {members.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No members created yet</p>}
       </div>
+
+      {activeSection === 'login_activity' && <LoginActivityTab />}
+      {activeSection === 'lead_activity' && <LeadActivityTab />}
     </div>
   );
 }

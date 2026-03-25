@@ -42,24 +42,30 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Members can only see leads currently assigned to them
+    if (authUser.role === 'member') {
+      query.assignedMemberId = authUser.id;
+    }
+
     const leads = await Lead.find(query)
       .populate('propertyId', '_id name')
       .sort({ createdAt: -1 });
 
     const assignedMemberIds = Array.from(
-      new Set(
-        leads
-          .map((l: any) => l.assignedMemberId?.toString?.())
-          .filter(Boolean)
-      )
+      new Set(leads.map((l: any) => l.assignedMemberId?.toString()).filter(Boolean))
     );
+    const createdByIds = Array.from(
+      new Set(leads.map((l: any) => l.createdBy?.toString()).filter(Boolean))
+    );
+    
+    const allUserIdsToFetch = Array.from(new Set([...assignedMemberIds, ...createdByIds]));
 
-    const assignedAgents = assignedMemberIds.length
-      ? await User.find({ _id: { $in: assignedMemberIds }, role: 'member' }).select('_id fullName')
+    const fetchedUsers = allUserIdsToFetch.length
+      ? await User.find({ _id: { $in: allUserIdsToFetch } }).select('_id fullName phone')
       : [];
 
-    const assignedAgentMap = new Map(
-      assignedAgents.map((a: any) => [a._id.toString(), { id: a._id.toString(), name: a.fullName }])
+    const userMap = new Map(
+      fetchedUsers.map((u: any) => [u._id.toString(), { id: u._id.toString(), name: u.fullName, phone: u.phone }])
     );
 
     const phoneCounts = new Map<string, number>();
@@ -76,7 +82,8 @@ export async function GET() {
       assignedMemberId: l.assignedMemberId?.toString?.(),
       duplicateCount: phoneCounts.get(normalizePhone((l as any).phone)) || 0,
       isDuplicate: (phoneCounts.get(normalizePhone((l as any).phone)) || 0) > 1,
-      members: l.assignedMemberId ? assignedAgentMap.get(l.assignedMemberId.toString()) || null : null,
+      members: l.assignedMemberId ? userMap.get(l.assignedMemberId.toString()) || null : null,
+      creator: l.createdBy ? userMap.get(l.createdBy.toString()) || null : null,
       properties:
         l.propertyId && typeof l.propertyId === 'object' && '_id' in l.propertyId
           ? {
@@ -103,17 +110,23 @@ export async function POST(req: Request) {
     const body = await req.json();
     await connectToDatabase();
 
+    // Zone must be explicitly selected by user
+    if (!String(body.zone || '').trim()) {
+      return NextResponse.json({ error: 'Zone is required' }, { status: 400 });
+    }
+
     const assignedMemberId = body.assignedMemberId || body.assigned_member_id || null;
     const assignmentError = await validateAgentAssignment(authUser, assignedMemberId);
     if (assignmentError) {
       return NextResponse.json({ error: assignmentError }, { status: 403 });
     }
 
-    // Map snake_case from form to camelCase for model
     const leadData = {
       ...body,
+      zone: String(body.zone || '').trim(),
       preferredLocation: body.preferred_location || body.preferredLocation,
-      assignedMemberId,
+      assignedMemberId: assignedMemberId || (authUser.role === 'member' ? authUser.id : null),
+      createdBy: authUser.id,
       moveInDate: body.move_in_date || body.moveInDate,
       roomType: body.room_type || body.roomType,
       needPreference: body.need_preference || body.needPreference,
