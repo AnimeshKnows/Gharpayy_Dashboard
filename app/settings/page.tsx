@@ -23,7 +23,7 @@ const SettingsPage = () => {
 
   if (isCEO) {
     return (
-      <AppLayout title="Settings" subtitle="Super Admin Control Panel" showQuickAddLead={false}>
+      <AppLayout title="Settings" subtitle="Super Admin Control Panel">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -39,7 +39,7 @@ const SettingsPage = () => {
   }
 
   return (
-    <AppLayout title="Settings" subtitle="System configuration" showQuickAddLead={false}>
+    <AppLayout title="Settings" subtitle="System configuration">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}

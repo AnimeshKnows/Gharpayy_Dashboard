@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import AppSidebar from './AppSidebar';
 import CommandPalette from './CommandPalette';
 import NotificationBell from './NotificationBell';
+import AddLeadDialog from './AddLeadDialog';
 import { Menu, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -82,6 +83,20 @@ const AppLayout = ({ children, title, subtitle, actions, showQuickAddLead = true
       </div>
 
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
+      {showQuickAddLead && (
+        <AddLeadDialog
+          trigger={
+            <button
+              type="button"
+              className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+              aria-label="Add lead"
+              title="Add Lead"
+            >
+              <span className="text-2xl leading-none">+</span>
+            </button>
+          }
+        />
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -151,7 +151,11 @@ function AIMatcher({ onClose }: { onClose: () => void }) {
 // ═══════════════════════════════════════════════════════════════════════
 //  MAIN ADD LEAD DIALOG
 // ═══════════════════════════════════════════════════════════════════════
-const AddLeadDialog = () => {
+type AddLeadDialogProps = {
+  trigger?: ReactNode;
+};
+
+const AddLeadDialog = ({ trigger }: AddLeadDialogProps) => {
   const { user } = useAuth();
   const canAddLead = user && ['super_admin', 'manager', 'admin', 'member'].includes(user.role);
   const [open, setOpen] = useState(false);
@@ -288,9 +292,11 @@ const AddLeadDialog = () => {
   return (
     <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) { setRawText(""); setParsed(null); setEdited(null); setBulkText(""); setBulkPreview(null); setSessionLeads([]); setShowMatcher(false); } }}>
       <DialogTrigger asChild disabled={!canAddLead}>
-        <Button size="sm" className="gap-1.5 text-xs" disabled={!canAddLead} title={!canAddLead ? 'Only Super Admins, managers, and admins can add leads' : ''}>
-          <Plus size={13} /> Add Lead
-        </Button>
+        {trigger || (
+          <Button size="sm" className="gap-1.5 text-xs" disabled={!canAddLead} title={!canAddLead ? 'Only Super Admins, managers, and admins can add leads' : ''}>
+            <Plus size={13} /> Add Lead
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="w-[95vw] sm:max-w-[500px] h-[90vh] sm:h-[85vh] p-0 border-0 bg-transparent shadow-none [&>button]:hidden">
         <DialogTitle className="sr-only">Add Lead</DialogTitle>
