@@ -65,18 +65,7 @@ const ZoneManagement = () => {
     toast.success('Escalation resolved');
   };
 
-  const handleDeleteZone = async (zone: any) => {
-    const zoneId = zone.id || zone._id;
-    if (!zoneId) {
-      toast.error('Unable to identify zone');
-      return;
-    }
 
-    const confirmed = window.confirm(`Delete zone \"${zone.name}\"?`);
-    if (!confirmed) return;
-
-    await deleteZone.mutateAsync(zoneId);
-  };
 
   const handleOpenEditZone = (zone: any) => {
     setEditZone(zone);
@@ -203,16 +192,6 @@ const ZoneManagement = () => {
                       aria-label={`Edit ${zone.name}`}
                     >
                       <Pencil size={12} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteZone(zone)}
-                      disabled={deleteZone.isPending}
-                      aria-label={`Delete ${zone.name}`}
-                    >
-                      <Trash2 size={12} />
                     </Button>
                   </div>
                 </div>

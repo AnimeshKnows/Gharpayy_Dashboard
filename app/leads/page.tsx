@@ -562,15 +562,7 @@ const Leads = () => {
                           <DropdownMenuItem onClick={() => { setSelectedLeadForEdit(lead); setEditDialogOpen(true); }}>
                             Edit Lead
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteLead(lead.id)} 
-                            className="text-destructive focus:text-destructive"
-                            style={{ cursor: 'pointer' }}
-                            onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.color = 'white'; }}
-                            onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.color = '#ef4444'; }}
-                          >
-                            Delete Lead
-                          </DropdownMenuItem>
+
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
