@@ -222,7 +222,7 @@ const Leads = () => {
   }
 
   return (
-    <AppLayout title="All Leads" subtitle={`${filtered.length} leads found`} actions={<AddLeadDialog />} showQuickAddLead={false}>
+    <AppLayout title="All Leads" subtitle={`${filtered.length} leads found`} actions={<AddLeadDialog />}>
       {/* Filters Area */}
       <div className="flex flex-col gap-3 mb-5">
         <div className="flex items-center justify-between">

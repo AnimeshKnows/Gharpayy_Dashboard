@@ -3,6 +3,8 @@ import AppSidebar from './AppSidebar';
 import CommandPalette from './CommandPalette';
 import NotificationBell from './NotificationBell';
 import AddLeadDialog from './AddLeadDialog';
+import DailyTargetFab from './DailyTargetFab';
+import AdminProgressFab from './AdminProgressFab';
 import { Menu, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -83,6 +85,8 @@ const AppLayout = ({ children, title, subtitle, actions, showQuickAddLead = true
       </div>
 
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
+      <DailyTargetFab />
+      <AdminProgressFab />
       {showQuickAddLead && (
         <AddLeadDialog
           trigger={
