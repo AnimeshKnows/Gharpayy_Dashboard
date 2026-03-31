@@ -21,6 +21,7 @@ import {
   Plus,
   Search,
   ArrowRight,
+  Clock,
 } from 'lucide-react';
 import { useLeads } from '@/hooks/useCrmData';
 
@@ -37,6 +38,7 @@ const pages = [
   { name: 'Conversations', path: '/conversations', icon: MessageSquare },
   { name: 'Analytics', path: '/analytics', icon: BarChart3 },
   { name: 'Historical', path: '/historical', icon: History },
+  { name: 'Attendance Login', path: '/attendance-login', icon: Clock },
   { name: 'Settings', path: '/settings', icon: Settings },
 ];
 
