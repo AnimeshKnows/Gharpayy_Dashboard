@@ -207,12 +207,12 @@ export function LeadActivityTab() {
     if (!stageKey) return 'None';
     
     // First try the dynamic pipeline stages
-    let stage = pipelineStagesData?.find((s: any) => s.key === stageKey);
-    if (stage) return stage.label;
+    const dynamicStage = pipelineStagesData?.find((s: any) => s.key === stageKey);
+    if (dynamicStage) return dynamicStage.label;
     
     // Default fallback stages for historical records
-    stage = PIPELINE_STAGES.find((s) => s.key === stageKey);
-    if (stage) return stage.label;
+    const defaultStage = PIPELINE_STAGES.find((s) => s.key === stageKey);
+    if (defaultStage) return defaultStage.label;
     
     // Final fallback: nicely format the key
     return stageKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
