@@ -3,22 +3,21 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Kanban, CalendarCheck, BarChart3, Settings,
   MessageSquare, History, X, Moon, Sun, Building2, Bed, TrendingUp,
-  Map, Sparkles, Receipt, Globe, UserCircle, LogOut, Trophy,
+  Map, Sparkles, Receipt, Globe, UserCircle, Zap
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '@/contexts/AuthContext';
 
 const salesItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/execution', icon: Zap, label: 'Execution' },
   { to: '/leads', icon: Users, label: 'Leads' },
   { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
-  { to: '/visits', icon: CalendarCheck, label: 'Visits' },
+  { to: '/visits', icon: CalendarCheck, label: 'Tours' },
   { to: '/conversations', icon: MessageSquare, label: 'Messages' },
   { to: '/bookings', icon: Receipt, label: 'Bookings' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/historical', icon: History, label: 'Historical' },
-  { to: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
 ];
 
 const supplyItems = [
@@ -31,13 +30,12 @@ const supplyItems = [
 ];
 
 const portalItems = [
-  { to: '/owner-portal', icon: UserCircle, label: 'Owner Portal' },
+  { to: '/owner-portal/v2', icon: UserCircle, label: 'Owner Portal' },
 ];
 
 const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) => {
   const pathname = usePathname();
   const [dark, setDark] = useState(false);
-  const { user, signOut } = useAuth();
   useEffect(() => {
     setDark(document.documentElement.classList.contains('dark'));
   }, []);
@@ -104,19 +102,15 @@ const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => voi
             <Settings size={15} strokeWidth={1.6} />
             <span>Settings</span>
           </NavLink>
-          <button onClick={signOut} className="sidebar-link w-full">
-            <LogOut size={15} strokeWidth={1.6} />
-            <span>Logout</span>
-          </button>
 
           <div className="mt-2 mx-0.5 p-2.5 rounded-lg" style={{ background: 'hsl(var(--sidebar-hover))' }}>
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center">
-                <span className="text-[9px] font-bold text-accent">{(user?.fullName || 'U').charAt(0).toUpperCase()}</span>
+                <span className="text-[9px] font-bold text-accent">A</span>
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-medium truncate" style={{ color: 'hsl(var(--sidebar-active-fg))' }}>{user?.fullName || 'User'}</p>
-                <p className="text-[9px] truncate" style={{ color: 'hsl(var(--sidebar-fg))' }}>{user?.zoneName ? `${user.zoneName} · ` : ''}{user?.role || 'guest'}</p>
+                <p className="text-[11px] font-medium truncate" style={{ color: 'hsl(var(--sidebar-active-fg))' }}>Admin</p>
+                <p className="text-[9px] truncate" style={{ color: 'hsl(var(--sidebar-fg))' }}>admin@gharpayy.com</p>
               </div>
             </div>
           </div>

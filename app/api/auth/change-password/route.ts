@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import connectToDatabase from '@/lib/mongodb';
 import User from '@/models/User';
+import Owner from '@/models/Owner';
 
 export async function POST(req: Request) {
   try {
@@ -22,7 +23,22 @@ export async function POST(req: Request) {
     }
 
     await connectToDatabase();
-    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    const normalizedEmail = email.trim().toLowerCase();
+    const owner = await Owner.findOne({ email: normalizedEmail });
+
+    if (owner?.password) {
+      const isValidOldPassword = await bcrypt.compare(String(oldPassword), String(owner.password));
+      if (!isValidOldPassword) {
+        return NextResponse.json({ error: 'Old password is incorrect' }, { status: 401 });
+      }
+
+      owner.password = await bcrypt.hash(newPassword, 12);
+      await owner.save();
+
+      return NextResponse.json({ message: 'Password changed successfully' });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user || !user.password) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });

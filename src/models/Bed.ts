@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IBed extends Document {
   roomId: mongoose.Types.ObjectId;
   bedNumber: string;
-  status: 'available' | 'occupied' | 'maintenance' | 'reserved';
+  status: 'available' | 'vacant' | 'occupied' | 'maintenance' | 'reserved';
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -15,8 +15,8 @@ const BedSchema: Schema = new Schema(
     bedNumber: { type: String, required: true },
     status: { 
       type: String, 
-      enum: ['available', 'occupied', 'maintenance', 'reserved'],
-      default: 'available'
+      enum: ['available', 'vacant', 'occupied', 'maintenance', 'reserved'],
+      default: 'vacant'
     },
     notes: { type: String },
   },

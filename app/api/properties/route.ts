@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import Property from '@/models/Property';
 import Owner from '@/models/Owner';
+import Room from '@/models/Room';
 
 export async function GET(req: Request) {
   try {
@@ -22,10 +23,18 @@ export async function GET(req: Request) {
       .sort({ name: 1 });
     
     // Transform to match frontend expected structure
-    const transformedProperties = properties.map(p => ({
-      ...p.toObject(),
-      id: p._id,
-      owners: p.ownerId
+    const transformedProperties = await Promise.all(properties.map(async (p) => {
+      const rooms = await Room.find({ propertyId: p._id }).populate('beds');
+      return {
+        ...p.toObject(),
+        id: p._id,
+        owners: p.ownerId,
+        rooms: rooms.map((r: any) => ({
+          ...r.toObject(),
+          id: r._id,
+          beds: (r.beds || []).map((b: any) => ({ ...b.toObject(), id: b._id })),
+        })),
+      };
     }));
 
     return NextResponse.json(transformedProperties);

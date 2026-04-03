@@ -38,7 +38,7 @@ const NotificationBell = () => {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[340px] max-w-[calc(100vw-1rem)] p-0 max-h-[420px] overflow-y-auto">
+      <PopoverContent align="end" className="w-[340px] p-0 max-h-[420px] overflow-y-auto">
         <div className="flex items-center justify-between p-3 border-b border-border">
           <h4 className="font-display font-semibold text-xs">Notifications</h4>
           {unread > 0 && (

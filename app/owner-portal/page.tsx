@@ -1,477 +1,286 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import { motion } from 'framer-motion';
-import {
-  Building2, Bed, CheckCircle2, Clock, TrendingUp, Users,
-  LogOut, RefreshCw, AlertTriangle, IndianRupee, BarChart3, Home,
-} from 'lucide-react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-
-// Hook: Fetch owner by user_id
-function useOwnerByUser(userId: string | undefined) {
-  return useQuery({
-    queryKey: ['owner-by-user', userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      const res = await fetch(`/api/owners?userId=${userId}`);
-      if (!res.ok) throw new Error('Failed to fetch owner');
-      const data = await res.json();
-      return data[0]; // Returns first match
-    },
-  });
-}
-
-// Hook: Properties with rooms/beds for an owner
-function useOwnerProperties(ownerId: string | undefined) {
-  return useQuery({
-    queryKey: ['owner-properties', ownerId],
-    enabled: !!ownerId,
-    queryFn: async () => {
-      const res = await fetch(`/api/properties?ownerId=${ownerId}`);
-      if (!res.ok) throw new Error('Failed to fetch properties');
-      const data = await res.json();
-      return data;
-    },
-  });
-}
-
-// Hook: Bookings for owner properties
-function useOwnerBookings(propertyIds: string[]) {
-  return useQuery({
-    queryKey: ['owner-bookings', propertyIds],
-    enabled: propertyIds.length > 0,
-    queryFn: async () => {
-      const res = await fetch(`/api/bookings?propertyIds=${propertyIds.join(',')}`);
-      if (!res.ok) throw new Error('Failed to fetch bookings');
-      const data = await res.json();
-      return data;
-    },
-  });
-}
-
-// Hook: Effort data for a property
-function usePropertyEffort(propertyId: string | undefined) {
-  return useQuery({
-    queryKey: ['property-effort', propertyId],
-    enabled: !!propertyId,
-    queryFn: async () => {
-      const res = await fetch(`/api/properties/${propertyId}/effort`);
-      if (!res.ok) throw new Error('Failed to fetch property effort');
-      return res.json();
-    },
-  });
-}
-
-// Hook: Confirm room status
-function useConfirmRoom() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (params: { room_id: string; status: string; confirmed_by?: string; notes?: string }) => {
-      const res = await fetch('/api/room-status-log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
-      });
-      if (!res.ok) throw new Error('Failed to confirm room status');
-      return res.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['owner-properties'] });
-      toast.success('Room status confirmed');
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-}
-
-
-const STATUS_COLORS: Record<string, string> = {
-  vacant: 'bg-success/10 text-success border-success/20',
-  occupied: 'bg-info/10 text-info border-info/20',
-  vacating: 'bg-warning/10 text-warning border-warning/20',
-  blocked: 'bg-destructive/10 text-destructive border-destructive/20',
-};
-
-const BOOKING_COLORS: Record<string, string> = {
-  pending: 'bg-warning/10 text-warning',
-  confirmed: 'bg-success/10 text-success',
-  cancelled: 'bg-destructive/10 text-destructive',
-  checked_in: 'bg-info/10 text-info',
-  checked_out: 'bg-muted text-muted-foreground',
-};
+import { useRouter } from 'next/navigation';
+import { T, GlobalStyles, Card, Btn, Tag, Chip, TabBar, Label, Input, Textarea, EmptyState } from '@/components/Gharpayy3X';
+import { toast } from 'sonner';
 
 export default function OwnerPortal() {
   const router = useRouter();
-  const { user, loading: authLoading, signOut } = useAuth();
-  const { data: owner, isLoading: ownerLoading, error: ownerError } = useOwnerByUser(user?.id);
-  const { data: properties } = useOwnerProperties(owner?.id);
-  const propertyIds = properties?.map((p: any) => p.id) || [];
-  const { data: bookings } = useOwnerBookings(propertyIds);
-  const confirmRoom = useConfirmRoom();
+  const queryClient = useQueryClient();
+  const [tab, setTab] = useState("rooms");
+  const [updateModal, setUpdateModal] = useState<any>(null);
+  const [form, setForm] = useState({ type: "available_now", availFrom: "", price: "", remarks: "" });
 
-  const [selectedProperty, setSelectedProperty] = useState<string>('all');
-  const [confirmDialog, setConfirmDialog] = useState<any>(null);
-  const [confirmStatus, setConfirmStatus] = useState('vacant');
-  const [confirmNotes, setConfirmNotes] = useState('');
+  // 1. Fetch user (auth check)
+  const { data: user, isLoading: authLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => {
+      const res = await fetch('/api/auth/me');
+      if (!res.ok) throw new Error('Not logged in');
+      const data = await res.json();
+      if (!data.user || data.user.role !== 'owner') throw new Error('Owner only');
+      return data.user;
+    },
+    retry: false
+  });
 
-  // If not logged in, redirect to auth
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/auth?redirect=/owner-portal');
+  // 2. Fetch inventory
+  const { data: properties, isLoading: inventoryLoading } = useQuery({
+    queryKey: ['owner-inventory'],
+    enabled: !!user,
+    queryFn: async () => {
+      const res = await fetch('/api/inventory/owner');
+      if (!res.ok) throw new Error('Failed to fetch inventory');
+      return res.json();
     }
-  }, [authLoading, user, router]);
+  });
 
-  if (authLoading || ownerLoading) {
+  const updateMutation = useMutation({
+    mutationFn: async ({ roomId, data }: any) => {
+      const res = await fetch('/api/inventory/owner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId, ...data })
+      });
+      if (!res.ok) throw new Error('Failed to update');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['owner-inventory'] });
+      toast.success('Room updated securely. Synced with Truth Pipe.');
+      setUpdateModal(null);
+    },
+    onError: (e: any) => toast.error(e.message)
+  });
+
+  const signOut = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/owner-login');
+  };
+
+  if (authLoading || (user && inventoryLoading)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading owner portal...</div>
+      <div style={{ minHeight:"100vh", background:T.bg0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+         <GlobalStyles />
+         <div className="gp-spin" style={{ width:24, height:24, border:`3px solid ${T.goldD}`, borderTopColor:T.gold, borderRadius:"50%" }} />
       </div>
     );
   }
 
-  if (!owner) {
+  if (!user) {
+    if (typeof window !== 'undefined') router.push('/owner-login');
+    return null;
+  }
+
+  const prop = properties?.[0]; // Handling first grouped property for layout
+  if (!prop) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="max-w-md w-full mx-4">
-          <CardContent className="p-8 text-center">
-            <AlertTriangle size={40} className="mx-auto mb-4 text-warning" />
-            <h2 className="text-xl font-semibold mb-2">No Owner Account Found</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Your account is not linked to any property owner profile. Please contact the Gharpayy team to set up your owner account.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <Button variant="outline" onClick={() => router.push('/')}>Go Home</Button>
-              <Button onClick={() => signOut()}>Sign Out</Button>
-            </div>
-          </CardContent>
-        </Card>
+      <div style={{ padding: 40, background:T.bg0, minHeight:'100vh', color:T.t0 }}>
+         <GlobalStyles />
+         <EmptyState msg="No properties assigned to your account yet." />
+         <Btn onClick={signOut} style={{ marginTop: 20 }}>Sign Out</Btn>
       </div>
     );
   }
 
-  // Stats
-  const filteredProps = selectedProperty === 'all'
-    ? properties || []
-    : properties?.filter((p: any) => p.id === selectedProperty) || [];
+  const myRooms = prop.rooms || [];
+  const vacantCount = myRooms.filter((r: any) => r.state === "APPROVED" || r.state === "AVAILABLE").length;
+  const lockedCount = myRooms.filter((r: any) => r.state === "LOCKED" || r.state === "OCCUPIED").length;
+  const totalActions = myRooms.reduce((acc: number, r: any) => acc + (r.actionCount || 0), 0);
 
-  const totalRooms = filteredProps.reduce((s: number, p: any) => s + (p.rooms?.length || 0), 0);
-  const totalBeds = filteredProps.reduce((s: number, p: any) =>
-    s + (p.rooms || []).reduce((rs: number, r: any) => rs + (r.beds?.length || 0), 0), 0);
-  const vacantBeds = filteredProps.reduce((s: number, p: any) =>
-    s + (p.rooms || []).reduce((rs: number, r: any) =>
-      rs + (r.beds || []).filter((b: any) => b.status === 'vacant').length, 0), 0);
-  const occupiedBeds = filteredProps.reduce((s: number, p: any) =>
-    s + (p.rooms || []).reduce((rs: number, r: any) =>
-      rs + (r.beds || []).filter((b: any) => b.status === 'occupied').length, 0), 0);
-
-  const occupancyRate = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
-
-  const handleConfirm = async () => {
-    if (!confirmDialog) return;
-    await confirmRoom.mutateAsync({
-      room_id: confirmDialog.id,
-      status: confirmStatus,
-      confirmed_by: owner.id,
-      notes: confirmNotes || undefined,
+  const openUpdate = (room: any) => {
+    setForm({ 
+      type: room.availabilityType || "available_now", 
+      availFrom: room.availableFrom || "", 
+      price: room.expectedRent?.toString() || "", 
+      remarks: room.remarks || "" 
     });
-    setConfirmDialog(null);
-    setConfirmNotes('');
+    setUpdateModal(room);
+  };
+
+  const submit = () => {
+    updateMutation.mutate({
+      roomId: updateModal.id,
+      data: {
+        availabilityType: form.type,
+        availableFrom: form.availFrom || null,
+        expectedPrice: parseInt(form.price) || updateModal.expectedRent,
+        remarks: form.remarks
+      }
+    });
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-                <span className="text-accent-foreground font-bold text-sm">G</span>
-              </div>
-              <div>
-                <span className="font-semibold text-base tracking-tight text-foreground">Gharpayy</span>
-                <span className="text-xs text-muted-foreground ml-2">Owner Portal</span>
-              </div>
+    <div className="gp-fade" style={{ minHeight:"100vh", background:T.bg0, fontFamily:T.sans, paddingBottom: 60 }}>
+      <GlobalStyles />
+      {/* Top Header */}
+      <div style={{ background:T.bg1, borderBottom:`1px solid ${T.line}`, height:54, display:"flex", alignItems:"center", padding:"0 20px", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+               <div style={{ width:26, height:26, background:T.gold, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <div style={{ width:9, height:9, background:T.bg0, borderRadius:1, transform:"rotate(45deg)" }} />
+               </div>
+               <span style={{ fontFamily:T.sans, fontWeight:700, fontSize:16, color:T.t0, letterSpacing:"-0.02em" }}>
+                  Gharpayy<span style={{ color:T.gold }}>OS</span>
+               </span>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground hidden sm:block">Welcome, {owner.name}</span>
-              <Button variant="ghost" size="sm" onClick={() => router.push('/')}>
-                <Home size={16} className="mr-1" /> Home
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => signOut()}>
-                <LogOut size={14} className="mr-1" /> Sign Out
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Title + Property Selector */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Property Dashboard</h1>
-            <p className="text-sm text-muted-foreground">{owner.name}{owner.company_name ? ` · ${owner.company_name}` : ''}</p>
-          </div>
-          <Select value={selectedProperty} onValueChange={setSelectedProperty}>
-            <SelectTrigger className="w-64">
-              <Building2 size={14} className="mr-2 text-muted-foreground" />
-              <SelectValue placeholder="All Properties" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Properties ({properties?.length || 0})</SelectItem>
-              {properties?.map((p: any) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* KPIs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          {[
-            { label: 'Total Properties', value: filteredProps.length, icon: Building2, color: 'text-accent' },
-            { label: 'Total Beds', value: totalBeds, icon: Bed, color: 'text-info' },
-            { label: 'Vacant Beds', value: vacantBeds, icon: CheckCircle2, color: 'text-success' },
-            { label: 'Occupancy Rate', value: `${occupancyRate}%`, icon: TrendingUp, color: 'text-warning' },
-          ].map((kpi) => (
-            <motion.div key={kpi.label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <kpi.icon size={16} className={kpi.color} />
-                    <span className="text-xs text-muted-foreground">{kpi.label}</span>
-                  </div>
-                  <p className="text-2xl font-semibold">{kpi.value}</p>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Tabs */}
-        <Tabs defaultValue="rooms" className="space-y-6">
-          <TabsList className="bg-secondary">
-            <TabsTrigger value="rooms">Rooms & Status</TabsTrigger>
-            <TabsTrigger value="bookings">Bookings</TabsTrigger>
-            <TabsTrigger value="effort">Effort Report</TabsTrigger>
-          </TabsList>
-
-          {/* Rooms Tab */}
-          <TabsContent value="rooms" className="space-y-4">
-            {filteredProps.map((property: any) => (
-              <Card key={property.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{property.name}</CardTitle>
-                    <Badge variant="secondary" className="text-xs">{property.area}, {property.city}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {(property.rooms || []).map((room: any) => {
-                      const vacant = (room.beds || []).filter((b: any) => b.status === 'vacant').length;
-                      const stale = room.last_confirmed_at
-                        ? new Date().getTime() - new Date(room.last_confirmed_at).getTime() > 24 * 60 * 60 * 1000
-                        : true;
-                      return (
-                        <div key={room.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-secondary/30 transition-colors">
-                          <div className="flex items-center gap-4">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-sm">Room {room.room_number}</span>
-                                {room.room_type && <Badge variant="outline" className="text-2xs">{room.room_type}</Badge>}
-                              </div>
-                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                <span>{room.bed_count} beds</span>
-                                <span className="text-success">{vacant} vacant</span>
-                                {room.rent_per_bed && <span>₹{room.rent_per_bed.toLocaleString()}/bed</span>}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge className={`text-2xs border ${STATUS_COLORS[room.status] || 'bg-muted'}`}>
-                              {room.status}
-                            </Badge>
-                            {stale && (
-                              <Badge variant="outline" className="text-2xs text-warning border-warning/30 gap-1">
-                                <Clock size={10} /> Needs confirmation
-                              </Badge>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="gap-1 text-xs"
-                              onClick={() => {
-                                setConfirmDialog(room);
-                                setConfirmStatus(room.status);
-                              }}
-                            >
-                              <RefreshCw size={12} /> Confirm
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {filteredProps.length === 0 && (
-              <div className="text-center py-16 text-muted-foreground">
-                <Building2 size={40} className="mx-auto mb-3 opacity-40" />
-                <p>No properties found</p>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Bookings Tab */}
-          <TabsContent value="bookings">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Recent Bookings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {bookings?.length ? (
-                  <div className="space-y-3">
-                    {bookings.map((b: any) => (
-                      <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
-                        <div>
-                          <p className="font-medium text-sm">{(b.leadId as any)?.name || 'Unknown'}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {(b.propertyId as any)?.name} · Room {(b.roomId as any)?.room_number} · Bed {(b.bedId as any)?.bed_number}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {b.move_in_date && `Move-in: ${b.move_in_date}`}
-                            {b.monthlyRent && ` · ₹${b.monthlyRent.toLocaleString()}/mo`}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={`text-2xs ${BOOKING_COLORS[b.bookingStatus] || ''}`}>
-                            {b.bookingStatus}
-                          </Badge>
-                          <Badge variant="outline" className="text-2xs">
-                            {b.payment_status}
-                          </Badge>
-                        </div>
-                      </div>
-
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Users size={32} className="mx-auto mb-3 opacity-40" />
-                    <p className="text-sm">No bookings yet</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Effort Tab */}
-          <TabsContent value="effort">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredProps.map((property: any) => (
-                <EffortCard key={property.id} property={property} />
-              ))}
-            </div>
-            {filteredProps.length === 0 && (
-              <div className="text-center py-16 text-muted-foreground">
-                <BarChart3 size={40} className="mx-auto mb-3 opacity-40" />
-                <p>No properties to show effort for</p>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+            <div style={{ width:1, height:20, background:T.line }} />
+            <div style={{ fontFamily:T.mono, fontSize:11, color:T.gold, background:T.gold+"18", border:`1px solid ${T.gold}35`, borderRadius:4, padding:"3px 9px", letterSpacing:"0.06em" }}>LISTING PARTNER</div>
+         </div>
+         <Btn onClick={signOut}>Sign Out</Btn>
       </div>
 
-      {/* Confirm Room Status Dialog */}
-      <Dialog open={!!confirmDialog} onOpenChange={(o) => !o && setConfirmDialog(null)}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Confirm Room Status</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Room {confirmDialog?.room_number} · {confirmDialog?.bed_count} beds
-            </p>
+      <div style={{ padding:"24px 20px", maxWidth:720, margin:"0 auto" }}>
+        {/* Property card */}
+        <Card glow={T.goldB} style={{ marginBottom:20, background:`linear-gradient(135deg, ${T.goldD}, transparent 70%)` }}>
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14 }}>
             <div>
-              <Label className="text-xs">Current Status</Label>
-              <Select value={confirmStatus} onValueChange={setConfirmStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="vacant">Vacant</SelectItem>
-                  <SelectItem value="occupied">Occupied</SelectItem>
-                  <SelectItem value="vacating">Vacating</SelectItem>
-                  <SelectItem value="blocked">Blocked</SelectItem>
-                </SelectContent>
-              </Select>
+              <div style={{ fontFamily:T.mono, fontSize:10, color:T.gold, letterSpacing:"0.1em", marginBottom:5 }}>YOUR PROPERTY</div>
+              <div style={{ fontWeight:700, fontSize:22, color:T.t0, letterSpacing:"-0.025em" }}>{prop?.location}</div>
+              <div style={{ fontFamily:T.mono, fontSize:12, color:T.t1, marginTop:4 }}>{prop?.area} · {myRooms.length} rooms managed</div>
             </div>
-            <div>
-              <Label className="text-xs">Notes (optional)</Label>
-              <Input
-                placeholder="Any updates..."
-                value={confirmNotes}
-                onChange={(e) => setConfirmNotes(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDialog(null)}>Cancel</Button>
-            <Button
-              onClick={handleConfirm}
-              disabled={confirmRoom.isPending}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground"
-            >
-              {confirmRoom.isPending ? 'Confirming...' : 'Confirm Status'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-// Sub-component for effort per property
-function EffortCard({ property }: { property: any }) {
-  const { data: effort } = usePropertyEffort(property.id);
-
-  return (
-    <Card>
-      <CardContent className="p-5">
-        <h3 className="font-semibold text-sm mb-1">{property.name}</h3>
-        <p className="text-xs text-muted-foreground mb-4">{property.area}</p>
-        {effort ? (
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'Total Leads', value: (effort as any).total_leads, color: 'text-foreground' },
-              { label: 'Total Visits', value: (effort as any).total_visits, color: 'text-info' },
-              { label: 'Booked', value: (effort as any).booked, color: 'text-success' },
-              { label: 'Not Interested', value: (effort as any).not_interested, color: 'text-destructive' },
-            ].map((s) => (
-              <div key={s.label} className="text-center p-2 rounded-lg bg-secondary/50">
-                <p className={`text-lg font-semibold ${s.color}`}>{s.value}</p>
-                <p className="text-2xs text-muted-foreground">{s.label}</p>
+            <div style={{ display:"flex", gap:10 }}>
+              <div style={{ textAlign:"center", background:T.greenD, border:`1px solid ${T.greenB}`, borderRadius:8, padding:"10px 16px" }}>
+                <div style={{ fontWeight:700, fontSize:24, color:T.green }}>{vacantCount}</div>
+                <div style={{ fontFamily:T.mono, fontSize:9, color:T.green, marginTop:2, letterSpacing:"0.05em" }}>SELLABLE</div>
               </div>
-            ))}
+              <div style={{ textAlign:"center", background:T.redD, border:`1px solid ${T.redB}`, borderRadius:8, padding:"10px 16px" }}>
+                <div style={{ fontWeight:700, fontSize:24, color:T.red }}>{lockedCount}</div>
+                <div style={{ fontFamily:T.mono, fontSize:9, color:T.red, marginTop:2, letterSpacing:"0.05em" }}>LOCKED</div>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="text-center py-4 text-xs text-muted-foreground">Loading effort data...</div>
+        </Card>
+
+        <TabBar tabs={[["rooms", "Rooms Ledger", lockedCount], ["tours", "Tour Ledger", prop.liveTours?.length || 0]]} active={tab} onChange={setTab} />
+        <div style={{ height:18 }} />
+
+        {/* ── ROOMS TAB ── */}
+        {tab === "rooms" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {myRooms.map((room: any) => {
+              const needsUpdate = room.state === "LOCKED";
+              return (
+                <div key={room.id} style={{ background:T.bg2, border:`1px solid ${needsUpdate ? T.redB : T.line}`, borderRadius:10, padding:"16px 20px", display:"flex", alignItems:"center", gap:16, flexWrap:"wrap", transition:"border .15s" }}>
+                  <div style={{ width:52, height:52, background:T.bg3, border:`1px solid ${T.line}`, borderRadius:8, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <div style={{ fontFamily:T.mono, fontWeight:600, fontSize:16, color:T.t0 }}>{room.roomNumber}</div>
+                    <div style={{ fontFamily:T.mono, fontSize:9, color:T.t3 }}>RM</div>
+                  </div>
+                  <div style={{ flex:1, minWidth:160 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, flexWrap:"wrap" }}>
+                      <Tag state={room.state} />
+                      {room.tier && <Chip label={room.tier} color={T.amber} />}
+                    </div>
+                    {room.availabilityType ? (
+                      <div style={{ fontFamily:T.mono, fontSize:12, color:T.t1 }}>
+                        Expected: ₹{room.expectedRent?.toLocaleString()}
+                        {room.retailPrice && <span style={{ color:T.gold, marginLeft:8 }}>→ Market ₹{room.retailPrice.toLocaleString()}</span>}
+                        {room.availableFrom && <span style={{ color:T.amber, marginLeft:8 }}>· From {room.availableFrom}</span>}
+                      </div>
+                    ) : (
+                      <div style={{ fontFamily:T.mono, fontSize:12, color:T.red }}>No availability set · System blocked</div>
+                    )}
+                    {room.remarks && <div style={{ fontSize:11, color:T.t2, marginTop:4 }}>{room.remarks}</div>}
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:8 }}>
+                    {room.updatedAt && <div style={{ fontFamily:T.mono, fontSize:10, color:T.t2 }}>Upd: {room.updatedAt}</div>}
+                    <Btn onClick={() => openUpdate(room)} variant={needsUpdate ? "red" : "ghost"} style={{ fontSize:12, padding:"6px 14px", whiteSpace:"nowrap" }}>
+                      {needsUpdate ? "Resolve Block" : "Update Truth"}
+                    </Btn>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
-      </CardContent>
-    </Card>
+
+        {/* ── TOURS TAB ── */}
+        {tab === "tours" && (
+          <div>
+            <Card style={{ marginBottom:16, background:T.greenD, border:`1px solid ${T.greenB}` }}>
+              <div style={{ fontFamily:T.mono, fontSize:12, color:T.green, lineHeight:1.75 }}>
+                Every action below is our live tour ledger for your property.<br/>
+                This is how we earn your trust — through transparent work, not talk.
+              </div>
+            </Card>
+
+            {prop.liveTours?.length > 0 ? (
+              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                {prop.liveTours.map((tour: any) => (
+                  <div key={tour.id} style={{ background:T.bg2, border:`1px solid ${T.line}`, borderRadius:10, padding:"16px 20px", display:"flex", alignItems:"center", gap:16 }}>
+                    <div style={{ width:40, height:40, background:T.goldD, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                       <div style={{ color:T.gold, fontWeight:700 }}>{tour.customer?.slice(0,1)}</div>
+                    </div>
+                    <div style={{ flex:1 }}>
+                       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                          <span style={{ fontWeight:700, fontSize:14, color:T.t0 }}>{tour.customer}</span>
+                          <Chip label={tour.tourType} color={T.blue} />
+                       </div>
+                       <div style={{ fontFamily:T.mono, fontSize:11, color:T.t2 }}>
+                          Scheduled for {new Date(tour.tourAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
+                       </div>
+                    </div>
+                    <div style={{ textAlign:"right" }}>
+                       <Tag state="SOFT_LOCKED" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState msg="No active tours scheduled. Tours appear here dynamicly as our sales team schedules them." />
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── UPDATE MODAL ── */}
+      {updateModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:998, backdropFilter:"blur(4px)" }} onClick={e => e.target === e.currentTarget && setUpdateModal(null)}>
+          <div className="gp-fade" style={{ background:T.bg2, border:`1px solid ${T.lineH}`, borderRadius:"16px 16px 0 0", padding:"28px 24px", width:"100%", maxWidth:480, paddingBottom:40 }}>
+            <div style={{ fontFamily:T.mono, fontSize:10, color:T.gold, letterSpacing:"0.1em", marginBottom:6 }}>SUBMIT TRUTH UPDATE</div>
+            <div style={{ fontWeight:700, fontSize:22, color:T.t0, marginBottom:4 }}>Room {updateModal.roomNumber}</div>
+            <div style={{ fontFamily:T.mono, fontSize:12, color:T.t1, marginBottom:24 }}>Base expected: ₹{updateModal.expectedRent?.toLocaleString()}/mo</div>
+
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+              <div>
+                <Label>Availability Target</Label>
+                <div style={{ display:"flex", gap:10 }}>
+                  {[["available_now","Available Now"],["available_on_date","Available On Date"], ["occupied", "Occupied"]].map(([v,l]) => (
+                    <button key={v} onClick={() => setForm({...form, type:v})} style={{ flex:1, background:form.type===v ? T.gold : T.bg3, border:`1px solid ${form.type===v ? T.gold : T.line}`, borderRadius:8, padding:"10px 0", fontSize:12, color:form.type===v ? T.bg0 : T.t1, fontFamily:T.sans, fontWeight:600, cursor:"pointer", transition:"all .12s" }}>{l}</button>
+                  ))}
+                </div>
+              </div>
+              {form.type === "available_on_date" && (
+                <div>
+                  <Label>Available From (Date)</Label>
+                  <Input type="date" value={form.availFrom} onChange={(e: any)=>setForm({...form,availFrom:e.target.value})} />
+                </div>
+              )}
+              {form.type !== "occupied" && (
+                 <div>
+                   <Label>Expected Rent (₹/month)</Label>
+                   <Input type="number" value={form.price} onChange={(e: any)=>setForm({...form,price:e.target.value})} placeholder={updateModal.expectedRent?.toString()} />
+                 </div>
+              )}
+              {form.type !== "occupied" && (
+                 <div>
+                   <Label>Remarks (optional · max 150 chars)</Label>
+                   <Textarea value={form.remarks} onChange={(e: any)=>setForm({...form,remarks:e.target.value.slice(0,150)})} placeholder="Why should a tenant take this room? Any highlights?" />
+                   <div style={{ textAlign:"right", fontFamily:T.mono, fontSize:10, color:T.t3, marginTop:4 }}>{form.remarks.length}/150</div>
+                 </div>
+              )}
+            </div>
+            <div style={{ display:"flex", gap:12, marginTop:28 }}>
+              <Btn onClick={() => setUpdateModal(null)} style={{ flex:1 }}>Cancel</Btn>
+              <Btn onClick={submit} variant="primary" style={{ flex:2, fontWeight:700 }} loading={updateMutation.isPending}>
+                 Commit Update
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

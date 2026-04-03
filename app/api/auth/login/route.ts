@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { issueAuthCookie, normalizeUsername, ensureDefaultCEO } from '@/lib/auth';
 import connectToDatabase from '@/lib/mongodb';
 import User from '@/models/User';
+import Owner from '@/models/Owner';
 import bcrypt from 'bcryptjs';
 import LoginActivity from '@/models/LoginActivity';
 
@@ -19,6 +20,37 @@ export async function POST(req: Request) {
     }
 
     await connectToDatabase();
+    const owner = await Owner.findOne({
+      $or: [{ username }, { email: username }],
+    });
+
+    if (owner && owner.password) {
+      const isValidPassword = await bcrypt.compare(String(password), String(owner.password));
+      if (!isValidPassword) {
+        return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+      }
+
+      await issueAuthCookie({
+        userId: owner._id.toString(),
+        username: owner.username,
+        email: owner.email,
+        fullName: owner.name,
+        role: 'owner',
+        zones: [],
+      });
+
+      return NextResponse.json({
+        message: 'Logged in successfully',
+        user: {
+          id: owner._id,
+          username: owner.username,
+          email: owner.email,
+          fullName: owner.name,
+          role: 'owner',
+        },
+      });
+    }
+
     const user = await User.findOne({ username });
 
     if (!user || !user.password) {

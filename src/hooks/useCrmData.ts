@@ -16,6 +16,7 @@ export type LeadWithRelations = {
   preferredLocation?: string;
   budget?: string;
   moveInDate?: string;
+  gender?: string;
   profession?: string;
   roomType?: string;
   needPreference?: string;

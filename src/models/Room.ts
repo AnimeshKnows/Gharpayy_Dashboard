@@ -5,7 +5,7 @@ export interface IRoom extends Document {
   roomNumber: string;
   floor?: string;
   bedCount?: number;
-  status: 'available' | 'partially_available' | 'occupied' | 'maintenance' | 'reserved';
+  status: 'available' | 'vacant' | 'vacating' | 'occupied' | 'blocked' | 'partially_available' | 'maintenance' | 'reserved';
   actualRent?: number;
   expectedRent?: number;
   roomType?: string;
@@ -13,6 +13,8 @@ export interface IRoom extends Document {
   rentPerBed?: number;
   bathroomType?: 'attached' | 'common';
   furnishing?: 'unfurnished' | 'semi-furnished' | 'fully-furnished';
+  autoLocked?: boolean;
+  lastConfirmedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,8 +27,8 @@ const RoomSchema: Schema = new Schema(
     bedCount: { type: Number, default: 0 },
     status: { 
       type: String, 
-      enum: ['available', 'partially_available', 'occupied', 'maintenance', 'reserved'],
-      default: 'available'
+      enum: ['available', 'vacant', 'vacating', 'occupied', 'blocked', 'partially_available', 'maintenance', 'reserved'],
+      default: 'vacant'
     },
     actualRent: { type: Number },
     expectedRent: { type: Number },
@@ -35,6 +37,8 @@ const RoomSchema: Schema = new Schema(
     rentPerBed: { type: Number },
     bathroomType: { type: String, enum: ['attached', 'common'], default: 'common' },
     furnishing: { type: String, enum: ['unfurnished', 'semi-furnished', 'fully-furnished'], default: 'unfurnished' },
+    autoLocked: { type: Boolean, default: false },
+    lastConfirmedAt: { type: Date },
   },
   { timestamps: true }
 );

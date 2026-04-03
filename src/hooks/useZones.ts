@@ -228,7 +228,15 @@ export function useRouteLeadToZone() {
 export function useDbMatchBeds() {
   return useMutation({
     mutationFn: async (params: { location: string; budget: number; roomType?: string }) => {
-       const res = await fetch(`/api/public/properties?city=${params.location}`);
+       const res = await fetch('/api/matching', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: params.location,
+          budget: params.budget,
+          roomType: params.roomType,
+        }),
+      });
        if (!res.ok) return [];
        return res.json();
     },

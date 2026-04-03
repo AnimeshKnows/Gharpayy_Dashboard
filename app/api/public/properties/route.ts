@@ -37,7 +37,7 @@ export async function GET(req: Request) {
         rooms: rooms.map(r => ({
           ...r.toObject(),
           id: r._id,
-          beds: (r as any).beds.map((b: any) => ({ ...b.toObject(), id: b._id }))
+          beds: (r as any).beds?.map((b: any) => ({ ...b.toObject(), id: b._id })) || []
         }))
       };
     }));

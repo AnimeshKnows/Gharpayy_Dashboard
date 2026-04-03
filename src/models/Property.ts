@@ -25,7 +25,7 @@ const PropertySchema: Schema = new Schema(
     address: { type: String, required: true },
     description: { type: String },
     photos: [{ type: String }],
-    ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    ownerId: { type: Schema.Types.ObjectId, ref: 'Owner', required: true },
     isActive: { type: Boolean, default: true },
     rating: { type: Number, default: 0 },
     genderAllowed: { type: String, enum: ['any', 'male', 'female'], default: 'any' },

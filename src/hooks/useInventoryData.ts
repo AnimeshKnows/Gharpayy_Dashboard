@@ -16,7 +16,17 @@ export function useOwners() {
 export function useCreateOwner() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (owner: { name: string; phone: string; email?: string | null; company_name?: string | null; notes?: string | null }) => {
+    mutationFn: async (owner: {
+      name: string;
+      phone: string;
+      email?: string | null;
+      username?: string | null;
+      password?: string | null;
+      exactPgName?: string | null;
+      gharpayyPgName?: string | null;
+      company_name?: string | null;
+      notes?: string | null;
+    }) => {
       const res = await fetch('/api/owners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

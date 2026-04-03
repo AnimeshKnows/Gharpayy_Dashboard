@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import connectToDatabase from '@/lib/mongodb';
 import User from '@/models/User';
+import Owner from '@/models/Owner';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_change_me';
 const ZONES = ['Zone1', 'Zone2', 'Zone3', 'Zone4', 'Zone5'] as const;
@@ -27,7 +28,7 @@ export type AuthTokenPayload = {
   username: string;
   email: string;
   fullName: string;
-  role: 'super_admin' | 'manager' | 'admin' | 'member' | 'user';
+  role: 'super_admin' | 'manager' | 'admin' | 'member' | 'user' | 'owner';
   zones?: string[];
   zoneName?: string; // deprecated, kept for backward compatibility
 };
@@ -152,6 +153,22 @@ export async function getAuthUserFromCookie() {
 
     const decoded = jwt.verify(token, JWT_SECRET) as AuthTokenPayload;
     await connectToDatabase();
+
+    if (decoded.role === 'owner') {
+      const owner = await Owner.findById(decoded.userId).select('-password');
+      if (!owner) return null;
+
+      return {
+        id: owner._id.toString(),
+        username: owner.username,
+        email: owner.email,
+        fullName: owner.name,
+        role: 'owner' as const,
+        zones: [],
+        zoneName: undefined,
+        phone: owner.phone,
+      };
+    }
 
     let user = await User.findById(decoded.userId).select('-password');
     if (!user) return null;
