@@ -3,7 +3,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Kanban, CalendarCheck, BarChart3, Settings,
   MessageSquare, History, X, Moon, Sun, Building2, Bed, TrendingUp,
-  Map, Sparkles, Receipt, Globe, UserCircle, LogOut, Clock,
+  Map, Sparkles, Receipt, Globe, UserCircle, LogOut,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,7 +31,6 @@ const supplyItems = [
 
 const portalItems = [
   { to: '/owner-portal', icon: UserCircle, label: 'Owner Portal' },
-  { to: '/attendance-login', icon: Clock, label: 'Attendance Login' },
 ];
 
 const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) => {
