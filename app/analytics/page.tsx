@@ -1,18 +1,21 @@
 "use client";
 
 import AppLayout from '@/components/AppLayout';
-import { useAgentStats, useLeads, useVisits, usePipelineStages } from '@/hooks/useCrmData';
+import { useAgentStats, useLeads, useVisits, usePipelineStages, useCreatorLeaderboard } from '@/hooks/useCrmData';
 import { PIPELINE_STAGES, SOURCE_LABELS } from '@/types/crm';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
-import { Trophy, TrendingDown } from 'lucide-react';
+import { Trophy, TrendingDown, ArrowRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 const Analytics = () => {
   const { data: agentStats, isLoading: agentsLoading } = useAgentStats();
   const { data: leads, isLoading: leadsLoading } = useLeads();
   const { data: visits } = useVisits();
   const { data: pipelineStagesData } = usePipelineStages();
+  const { data: leaderboardData } = useCreatorLeaderboard('this_month');
   const pipelineStages = (pipelineStagesData && pipelineStagesData.length > 0)
     ? pipelineStagesData
     : PIPELINE_STAGES.map((s, i) => ({ ...s, order: i }));
@@ -47,14 +50,7 @@ const Analytics = () => {
     };
   }).filter(s => s.leads > 0);
 
-  // 3. Member Leaderboard
-  const leaderboard = [...(agentStats || [])].sort((a, b) => {
-    const rateA = a.totalLeads ? a.conversions / a.totalLeads : 0;
-    const rateB = b.totalLeads ? b.conversions / b.totalLeads : 0;
-    return rateB - rateA;
-  });
-
-  // 4. Weekly Trends
+  // 3. Weekly Trends
   const weekMap: Record<string, { leads: number; bookings: number }> = {};
   (leads || []).forEach(l => {
     const d = new Date(l.createdAt);
@@ -136,36 +132,41 @@ const Analytics = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Member Leaderboard */}
+        {/* Leaderboard */}
         <motion.div className="kpi-card" {...anim(0.15)}>
-          <h3 className="font-display font-semibold text-xs text-foreground mb-5 flex items-center gap-2">
-            <Trophy size={14} className="text-accent" /> Member Leaderboard
-          </h3>
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-display font-semibold text-xs text-foreground flex items-center gap-2">
+              <Trophy size={14} className="text-accent" /> Leaderboard
+            </h3>
+            <Link href="/leaderboard">
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
+                View All <ArrowRight size={10} className="ml-1" />
+              </Button>
+            </Link>
+          </div>
           <div className="space-y-2">
-            {leaderboard.map((member, i) => {
-              const rate = member.totalLeads ? Math.round((member.conversions / member.totalLeads) * 100) : 0;
-              return (
-                <div key={member.id} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                    i === 0 ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {i + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-foreground">{member.name}</p>
-                    <div className="flex gap-3 mt-0.5">
-                      <span className="text-[10px] text-muted-foreground">{member.activeLeads} active</span>
-                      <span className="text-[10px] text-muted-foreground">{member.avgResponseTime}m avg</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-display font-bold text-foreground">{rate}%</p>
-                    <p className="text-[9px] text-muted-foreground">{member.conversions}/{member.totalLeads}</p>
+            {(leaderboardData?.rankings || []).slice(0, 4).map((entry, i) => (
+              <div key={entry.userId} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                  i === 0 ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'
+                }`}>
+                  {i + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-foreground">{entry.name}</p>
+                  <div className="flex gap-3 mt-0.5">
+                    <span className="text-[10px] text-muted-foreground">{entry.role}</span>
                   </div>
                 </div>
-              );
-            })}
-            {leaderboard.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">No member data</p>}
+                <div className="text-right">
+                  <p className="text-sm font-display font-bold text-foreground">{entry.score}</p>
+                  <p className="text-[9px] text-muted-foreground">{entry.leadsCreated} leads</p>
+                </div>
+              </div>
+            ))}
+            {(!leaderboardData?.rankings || leaderboardData.rankings.length === 0) && (
+              <p className="text-xs text-muted-foreground text-center py-6">No leaderboard data</p>
+            )}
           </div>
         </motion.div>
 
