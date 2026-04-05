@@ -26,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, Loader2, MoreVertical, UserPlus, Users, Shield, User, ChevronRight, KeyRound, Pencil, MapPin, Eye, EyeOff, Trophy, Link2, Copy, RefreshCcw } from 'lucide-react';
+import { Plus, Loader2, MoreVertical, UserPlus, Users, Shield, User, ChevronRight, KeyRound, Pencil, MapPin, Eye, EyeOff, Link2, Copy, RefreshCcw } from 'lucide-react';
 import { LoginActivityTab, LeadActivityTab } from '@/components/ActivityTabs';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -69,7 +69,7 @@ interface ZoneOption {
 
 /* ========== Main Panel ========== */
 export function SuperAdminSettingsPanel() {
-  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'profiles' | 'activity' | 'leaderboard' | 'integration'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'profiles' | 'activity' | 'integration'>('users');
 
   return (
     <div className="space-y-6">
@@ -80,7 +80,6 @@ export function SuperAdminSettingsPanel() {
           { id: 'roles', label: 'Roles', icon: Shield },
           { id: 'profiles', label: 'Profiles', icon: User },
           { id: 'activity', label: 'Activity', icon: KeyRound },
-          { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
           { id: 'integration', label: 'Integration', icon: Link2 },
         ].map((tab) => (
           <button

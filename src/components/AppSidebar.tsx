@@ -3,10 +3,11 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Kanban, CalendarCheck, BarChart3, Settings,
   MessageSquare, History, Trophy, X, Moon, Sun, Building2, Bed, TrendingUp,
-  Map, Sparkles, Receipt, Globe, UserCircle
+  Map, Sparkles, Receipt, Globe, UserCircle, LogOut
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
 
 const salesItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -35,6 +36,7 @@ const portalItems = [
 
 const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) => {
   const pathname = usePathname();
+  const { signOut } = useAuth();
   const [dark, setDark] = useState(false);
   useEffect(() => {
     setDark(document.documentElement.classList.contains('dark'));
@@ -102,6 +104,16 @@ const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => voi
             <Settings size={15} strokeWidth={1.6} />
             <span>Settings</span>
           </NavLink>
+          <button
+            onClick={async () => {
+              onClose?.();
+              await signOut();
+            }}
+            className="sidebar-link w-full"
+          >
+            <LogOut size={15} strokeWidth={1.6} />
+            <span>Logout</span>
+          </button>
 
           <div className="mt-2 mx-0.5 p-2.5 rounded-lg" style={{ background: 'hsl(var(--sidebar-hover))' }}>
             <div className="flex items-center gap-2">

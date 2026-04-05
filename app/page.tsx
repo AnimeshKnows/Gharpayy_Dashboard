@@ -44,7 +44,7 @@ export default function LandingPage() {
             <p className="text-sm text-muted-foreground mt-1">Sign in to ARENA OS attendance system.</p>
             <Button
               className="mt-6 w-full h-11 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
-              onClick={() => window.location.href = 'https://gharpayy-core.vercel.app/login'}
+              onClick={() => window.location.href = 'https://core.gharpayy.in/login'}
             >
               Proceed
             </Button>
