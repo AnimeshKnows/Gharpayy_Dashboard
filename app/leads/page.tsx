@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import AddLeadDialog from '@/components/AddLeadDialog';
 import EditLeadDialog from '@/components/EditLeadDialog';
-import { useLeadsPaginated, useOfficeZones, usePipelineStages } from '@/hooks/useCrmData';
+import { useLeadsPaginated, useOfficeZones, usePipelineStages, type LeadsQueryFilters } from '@/hooks/useCrmData';
 import { useBulkUpdateLeads, useDeleteLeads } from '@/hooks/useLeadDetails';
 import { useUpdateLead, useAgents, type LeadWithRelations } from '@/hooks/useCrmData';
 import { PIPELINE_STAGES, SOURCE_LABELS } from '@/types/crm';
@@ -107,14 +107,33 @@ const Leads = () => {
   const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<LeadWithRelations | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   
-  const [filterDateMode, setFilterDateMode] = useState<'newest' | 'oldest' | 'date' | 'month'>('newest');
+  const [filterDateMode, setFilterDateMode] = useState<'newest' | 'oldest' | 'alphabetical' | 'date' | 'month'>('newest');
   const [filterDate, setFilterDate] = useState<string>('');
   const [filterMonth, setFilterMonth] = useState<string>('');
   const [updatingStageLeadId, setUpdatingStageLeadId] = useState<string | null>(null);
   const [updatingStageTarget, setUpdatingStageTarget] = useState<{ leadId: string; stageKey: string } | null>(null);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchQuery(searchQuery), 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const serverFilters: LeadsQueryFilters = {
+    q: debouncedSearchQuery.trim() || undefined,
+    status: filterStatus,
+    source: filterSource,
+    zone: filterZone,
+    duplicate: filterDuplicate as LeadsQueryFilters['duplicate'],
+    sort: filterDateMode === 'oldest' ? 'oldest' : filterDateMode === 'alphabetical' ? 'alphabetical' : 'newest',
+  };
+
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearchQuery, filterSource, filterStatus, filterDuplicate, filterZone, filterDateMode]);
   
   const PAGE_SIZE = 50;
-  const { data: paginatedData, isLoading } = useLeadsPaginated(page, PAGE_SIZE);
+  const { data: paginatedData, isLoading } = useLeadsPaginated(page, PAGE_SIZE, serverFilters);
   const leads = paginatedData?.leads;
   const totalLeads = paginatedData?.total ?? 0;
   const totalPages = Math.ceil(totalLeads / PAGE_SIZE);
@@ -132,8 +151,8 @@ const Leads = () => {
 
   const filtered = (leads || [])
     .filter(l => {
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
+      if (debouncedSearchQuery) {
+        const q = debouncedSearchQuery.toLowerCase();
         const shortId = `l-${l.id.slice(-6).toLowerCase()}`;
         if (
           !l.name.toLowerCase().includes(q) &&
@@ -163,10 +182,6 @@ const Leads = () => {
         }
       }
       return true;
-    })
-    .sort((a, b) => {
-      if (filterDateMode === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
   const toggleSelect = (id: string) => {
@@ -303,6 +318,7 @@ const Leads = () => {
               <SelectContent side="bottom" align="start">
                 <SelectItem value="newest">Newest First</SelectItem>
                 <SelectItem value="oldest">Oldest First</SelectItem>
+                <SelectItem value="alphabetical">Alphabetical (A-Z)</SelectItem>
                 <SelectItem value="date">By Date</SelectItem>
                 <SelectItem value="month">By Month</SelectItem>
               </SelectContent>
@@ -375,6 +391,7 @@ const Leads = () => {
               <SelectContent side="bottom" align="start">
                 <SelectItem value="newest">Newest First</SelectItem>
                 <SelectItem value="oldest">Oldest First</SelectItem>
+                <SelectItem value="alphabetical">Alphabetical (A-Z)</SelectItem>
                 <SelectItem value="date">By Date</SelectItem>
                 <SelectItem value="month">By Month</SelectItem>
               </SelectContent>
@@ -452,6 +469,7 @@ const Leads = () => {
         {filtered.map(lead => {
           const m = mapLeadMeta(lead);
           const isExpanded = expandedId === lead.id;
+          const isDuplicateLead = !!lead.isDuplicate;
           const sBadge = statusBadgeConfig[lead.status] || statusBadgeConfig.new;
           const stageLabel = pipelineStages.find((s: any) => s.key === lead.status)?.label || lead.status;
           const hue = lead.name ? lead.name.charCodeAt(0) * 7 % 360 : 200;
@@ -474,16 +492,22 @@ const Leads = () => {
                 className="lc-card"
                 onClick={() => setExpandedId(lead.id)}
                 style={{
-                  background: 'var(--lc-bg1)',
-                  border: '1px solid var(--lc-line)',
+                  background: isDuplicateLead ? 'rgba(251,113,133,0.045)' : 'var(--lc-bg1)',
+                  border: isDuplicateLead ? '1px solid rgba(251,113,133,0.28)' : '1px solid var(--lc-line)',
                   borderRadius: 12,
                   padding: '12px 14px',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                   position: 'relative',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--lc-line2)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--lc-line)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = isDuplicateLead ? 'rgba(251,113,133,0.45)' : 'var(--lc-line2)';
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.borderColor = isDuplicateLead ? 'rgba(251,113,133,0.28)' : 'var(--lc-line)';
+                  (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+                }}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                   {/* Checkbox */}
@@ -678,9 +702,9 @@ const Leads = () => {
               initial={{ opacity: 0.9 }}
               animate={{ opacity: 1 }}
               style={{
-                background: 'var(--lc-bg1)',
+                background: isDuplicateLead ? 'rgba(251,113,133,0.055)' : 'var(--lc-bg1)',
                 borderRadius: 14,
-                border: `2px solid var(--lc-acc)`,
+                border: isDuplicateLead ? '2px solid rgba(251,113,133,0.4)' : `2px solid var(--lc-acc)`,
                 overflow: 'hidden',
               }}
             >

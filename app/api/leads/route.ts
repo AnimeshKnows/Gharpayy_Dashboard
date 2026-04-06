@@ -13,6 +13,10 @@ function normalizePhone(phone?: string | null) {
   return digits;
 }
 
+function escapeRegex(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 async function validateAgentAssignment(authUser: any, agentId?: string | null) {
   if (!agentId) return null;
 
@@ -41,6 +45,14 @@ export async function GET(req: Request) {
     const skip = Math.max(0, parseInt(url.searchParams.get('skip') || '0'));
     const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50')));
     const status = url.searchParams.get('status');
+    const source = url.searchParams.get('source');
+    const zone = url.searchParams.get('zone');
+    const q = (url.searchParams.get('q') || '').trim();
+    const duplicate = url.searchParams.get('duplicate');
+    const sort = url.searchParams.get('sort');
+    const sortQuery: Record<string, 1 | -1> = sort === 'alphabetical'
+      ? { name: 1, createdAt: -1 }
+      : { createdAt: sort === 'oldest' ? 1 : -1 };
 
     const query: any = {};
     if (!['super_admin', 'manager', 'admin', 'member'].includes(authUser.role)) {
@@ -57,13 +69,108 @@ export async function GET(req: Request) {
       query.status = status;
     }
 
+    if (source) {
+      query.source = source;
+    }
+
+    if (zone) {
+      query.zone = zone;
+    }
+
+    if (q) {
+      const safe = escapeRegex(q);
+      query.$or = [
+        { name: { $regex: safe, $options: 'i' } },
+        { phone: { $regex: safe, $options: 'i' } },
+      ];
+    }
+
+    // Duplicate/unique filtering must be done before pagination.
+    if (duplicate === 'duplicate' || duplicate === 'unique') {
+      const candidates = await Lead.find(query)
+        .select('_id phone')
+        .sort(sortQuery)
+        .lean();
+
+      const phoneCounts = new Map<string, number>();
+      for (const lead of candidates) {
+        const normalizedPhone = normalizePhone((lead as any).phone);
+        if (!normalizedPhone) continue;
+        phoneCounts.set(normalizedPhone, (phoneCounts.get(normalizedPhone) || 0) + 1);
+      }
+
+      const matchingIds = candidates
+        .filter((lead: any) => {
+          const normalizedPhone = normalizePhone(lead.phone);
+          const count = normalizedPhone ? (phoneCounts.get(normalizedPhone) || 0) : 0;
+          return duplicate === 'duplicate' ? count > 1 : count <= 1;
+        })
+        .map((lead: any) => lead._id.toString());
+
+      const total = matchingIds.length;
+      const pagedIds = matchingIds.slice(skip, skip + limit);
+
+      if (pagedIds.length === 0) {
+        return NextResponse.json({ leads: [], total });
+      }
+
+      const leadsUnsorted = await Lead.find({ _id: { $in: pagedIds } })
+        .populate('propertyId', '_id name');
+
+      const order = new Map(pagedIds.map((id, index) => [id, index]));
+      const leads = leadsUnsorted.sort((a: any, b: any) => {
+        const ai = order.get(a._id.toString()) ?? 0;
+        const bi = order.get(b._id.toString()) ?? 0;
+        return ai - bi;
+      });
+
+      const assignedMemberIds = Array.from(
+        new Set(leads.map((l: any) => l.assignedMemberId?.toString()).filter(Boolean))
+      );
+      const createdByIds = Array.from(
+        new Set(leads.map((l: any) => l.createdBy?.toString()).filter(Boolean))
+      );
+
+      const allUserIdsToFetch = Array.from(new Set([...assignedMemberIds, ...createdByIds]));
+      const fetchedUsers = allUserIdsToFetch.length
+        ? await User.find({ _id: { $in: allUserIdsToFetch } }).select('_id fullName phone')
+        : [];
+
+      const userMap = new Map(
+        fetchedUsers.map((u: any) => [u._id.toString(), { id: u._id.toString(), name: u.fullName, phone: u.phone }])
+      );
+
+      const transformedLeads = leads.map(l => {
+        const normalizedPhone = normalizePhone((l as any).phone);
+        const duplicateCount = normalizedPhone ? (phoneCounts.get(normalizedPhone) || 0) : 0;
+        return {
+          ...l.toObject(),
+          id: l._id.toString(),
+          assignedMemberId: l.assignedMemberId?.toString?.(),
+          duplicateCount,
+          isDuplicate: duplicateCount > 1,
+          members: l.assignedMemberId ? userMap.get(l.assignedMemberId.toString()) || null : null,
+          creator: l.createdBy ? userMap.get(l.createdBy.toString()) || null : null,
+          properties:
+            l.propertyId && typeof l.propertyId === 'object' && '_id' in l.propertyId
+              ? {
+                  id: (l.propertyId as any)._id.toString(),
+                  name: (l.propertyId as any).name,
+                }
+              : null,
+        };
+      });
+
+      return NextResponse.json({ leads: transformedLeads, total });
+    }
+
     // Get total count for pagination
     const total = await Lead.countDocuments(query);
 
     // Fetch paginated leads
     const leads = await Lead.find(query)
       .populate('propertyId', '_id name')
-      .sort({ createdAt: -1 })
+      .sort(sortQuery)
       .skip(skip)
       .limit(limit);
 

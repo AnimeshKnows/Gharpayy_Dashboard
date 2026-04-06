@@ -51,6 +51,15 @@ export type CreatorLeaderboardResponse = {
   rankings: CreatorLeaderboardEntry[];
 };
 
+export type LeadsQueryFilters = {
+  q?: string;
+  status?: string;
+  source?: string;
+  zone?: string;
+  duplicate?: 'all' | 'duplicate' | 'unique';
+  sort?: 'newest' | 'oldest' | 'alphabetical';
+};
+
 
 // Leads (all) - handles new { leads, total } format
 export const useLeads = () =>
@@ -67,15 +76,27 @@ export const useLeads = () =>
   });
 
 // Leads (paginated) - server-side pagination
-export const useLeadsPaginated = (page = 0, pageSize = 50) =>
+export const useLeadsPaginated = (page = 0, pageSize = 50, filters?: LeadsQueryFilters) =>
   useQuery({
-    queryKey: ['leads-paginated', page, pageSize],
+    queryKey: ['leads-paginated', page, pageSize, filters || {}],
     queryFn: async () => {
       const skip = page * pageSize;
-      const res = await fetch(`/api/leads?skip=${skip}&limit=${pageSize}`);
+      const params = new URLSearchParams();
+      params.set('skip', String(skip));
+      params.set('limit', String(pageSize));
+
+      if (filters?.q) params.set('q', filters.q);
+      if (filters?.status && filters.status !== 'all') params.set('status', filters.status);
+      if (filters?.source && filters.source !== 'all') params.set('source', filters.source);
+      if (filters?.zone && filters.zone !== 'all') params.set('zone', filters.zone);
+      if (filters?.duplicate && filters.duplicate !== 'all') params.set('duplicate', filters.duplicate);
+      if (filters?.sort) params.set('sort', filters.sort);
+
+      const res = await fetch(`/api/leads?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch leads');
       return res.json() as Promise<{ leads: LeadWithRelations[]; total: number }>;
     },
+    placeholderData: (previousData) => previousData,
     staleTime: 30000, // 30s cache before refetch
   });
 
