@@ -5,6 +5,8 @@ import NotificationBell from './NotificationBell';
 import QuickAddLead from './QuickAddLead';
 import { Menu, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
+import { formatUserLabel } from '@/lib/userDisplay';
 
 export interface AppLayoutProps {
   children: ReactNode;
@@ -17,6 +19,8 @@ export interface AppLayoutProps {
 const AppLayout = ({ children, title, subtitle, actions, showQuickAddLead = true }: AppLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const { user } = useAuth();
+  const userLabel = formatUserLabel(user);
 
   return (
     <div className="min-h-screen bg-background">
@@ -34,6 +38,11 @@ const AppLayout = ({ children, title, subtitle, actions, showQuickAddLead = true
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {userLabel && (
+              <div className="hidden sm:flex items-center px-3 py-1.5 rounded-full border border-border/60 bg-secondary/70 text-[11px] font-medium text-foreground/80 max-w-[180px] truncate">
+                {userLabel}
+              </div>
+            )}
             {actions}
             <NotificationBell />
             <button

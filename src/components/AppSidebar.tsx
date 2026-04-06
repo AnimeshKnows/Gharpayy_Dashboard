@@ -8,6 +8,7 @@ import {
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatUserLabel } from '@/lib/userDisplay';
 
 const salesItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -36,8 +37,9 @@ const portalItems = [
 
 const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) => {
   const pathname = usePathname();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const [dark, setDark] = useState(false);
+  const userLabel = formatUserLabel(user);
   useEffect(() => {
     setDark(document.documentElement.classList.contains('dark'));
   }, []);
@@ -118,11 +120,12 @@ const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => voi
           <div className="mt-2 mx-0.5 p-2.5 rounded-lg" style={{ background: 'hsl(var(--sidebar-hover))' }}>
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center">
-                <span className="text-[9px] font-bold text-accent">A</span>
+                <span className="text-[9px] font-bold text-accent">{(user?.username || user?.fullName || 'U').slice(0, 1).toUpperCase()}</span>
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-medium truncate" style={{ color: 'hsl(var(--sidebar-active-fg))' }}>Admin</p>
-                <p className="text-[9px] truncate" style={{ color: 'hsl(var(--sidebar-fg))' }}>admin@gharpayy.com</p>
+                <p className="text-[11px] font-medium truncate" style={{ color: 'hsl(var(--sidebar-active-fg))' }}>
+                  {userLabel || 'Signed in user'}
+                </p>
               </div>
             </div>
           </div>

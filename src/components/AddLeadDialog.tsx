@@ -392,7 +392,7 @@ const AddLeadDialog = ({ trigger, open: controlledOpen, onOpenChange, editingLea
       {!isEditMode && (
         <DialogTrigger asChild disabled={!canAddLead}>
           {trigger || (
-            <Button size="sm" className="gap-1.5 text-xs" disabled={!canAddLead} title={!canAddLead ? 'Only Super Admins, managers, and admins can add leads' : ''}>
+            <Button size="sm" className="gap-1.5 text-xs" disabled={!canAddLead} title={!canAddLead ? 'Only Super Admins, managers, admins, and members can add leads' : ''}>
               <Plus size={13} /> Add Lead
             </Button>
           )}
