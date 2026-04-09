@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
-import AddLeadDialog from '@/components/AddLeadDialog';
 import EditLeadDialog from '@/components/EditLeadDialog';
 import { useLeadsPaginated, useOfficeZones, usePipelineStages, useCreateVisit, useProperties, type LeadsQueryFilters } from '@/hooks/useCrmData';
 import { useBulkUpdateLeads, useDeleteLeads } from '@/hooks/useLeadDetails';
 import { useUpdateLead, useAgents, type LeadWithRelations } from '@/hooks/useCrmData';
 import { PIPELINE_STAGES, SOURCE_LABELS } from '@/types/crm';
-import { Filter, Download, Trash2, PhoneCall, MessageCircle, MoreVertical, MapPin, ChevronDown, ChevronUp, Check, Loader2, CalendarDays } from 'lucide-react';
+import { Filter, Download, Trash2, PhoneCall, MessageCircle, MoreVertical, MapPin, ChevronDown, ChevronUp, Check, Loader2, CalendarDays, Plus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -224,6 +223,7 @@ const Leads = () => {
   const createVisit = useCreateVisit();
   const { user } = useAuth();
   const canManageLeadAssignments = ['super_admin', 'manager', 'admin', 'member'].includes(user?.role || '');
+  const canAddLead = ['super_admin', 'manager', 'admin', 'member'].includes(user?.role || '');
 
   useEffect(() => {
     if (!scheduleAssignedTo) return;
@@ -424,6 +424,10 @@ const Leads = () => {
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
 
+  const openLeadIntakeInNewTab = () => {
+    window.open('/leads/intake', '_blank', 'noopener,noreferrer');
+  };
+
   if (isLoading) {
     return (
       <AppLayout title="All Leads" subtitle="Loading...">
@@ -433,7 +437,22 @@ const Leads = () => {
   }
 
   return (
-    <AppLayout title="All Leads" subtitle={subtitleCount} actions={<AddLeadDialog />}>
+    <AppLayout
+      title="All Leads"
+      subtitle={subtitleCount}
+      showQuickAddLead={false}
+      actions={(
+        <Button
+          size="sm"
+          className="gap-1.5 text-xs"
+          disabled={!canAddLead}
+          title={!canAddLead ? 'Only Super Admins, managers, admins, and members can add leads' : 'Open Lead Intake in a new tab'}
+          onClick={openLeadIntakeInNewTab}
+        >
+          <Plus size={13} /> Add Lead
+        </Button>
+      )}
+    >
       {/* Filters Area */}
       <div className="flex flex-col gap-3 mb-5">
         <div className="flex items-center justify-between">
@@ -1377,6 +1396,17 @@ const Leads = () => {
           </div>
         </div>
       )}
+
+      <button
+        type="button"
+        aria-label="Add lead"
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-accent text-accent-foreground shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:cursor-not-allowed disabled:opacity-60"
+        onClick={openLeadIntakeInNewTab}
+        disabled={!canAddLead}
+        title={!canAddLead ? 'Only Super Admins, managers, admins, and members can add leads' : 'Open Lead Intake in a new tab'}
+      >
+        <Plus size={24} strokeWidth={2.5} />
+      </button>
 
       {/* Edit Lead Dialog */}
       <EditLeadDialog
