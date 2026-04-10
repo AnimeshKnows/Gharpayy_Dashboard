@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import EditLeadDialog from '@/components/EditLeadDialog';
 import { useLeadsPaginated, useOfficeZones, usePipelineStages, useCreateVisit, useProperties, type LeadsQueryFilters } from '@/hooks/useCrmData';
-import { useBulkUpdateLeads, useDeleteLeads } from '@/hooks/useLeadDetails';
+import { useBulkUpdateLeads } from '@/hooks/useLeadDetails';
 import { useUpdateLead, useAgents, type LeadWithRelations } from '@/hooks/useCrmData';
 import { PIPELINE_STAGES, SOURCE_LABELS } from '@/types/crm';
-import { Filter, Download, Trash2, PhoneCall, MessageCircle, MoreVertical, MapPin, ChevronDown, ChevronUp, Check, Loader2, CalendarDays, Plus } from 'lucide-react';
+import { Filter, Download, PhoneCall, MessageCircle, MoreVertical, MapPin, ChevronDown, ChevronUp, Check, Loader2, CalendarDays, Plus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -219,7 +219,6 @@ const Leads = () => {
     ? pipelineStagesData
     : PIPELINE_STAGES.map((s, i) => ({ ...s, order: i }));
   const bulkUpdate = useBulkUpdateLeads();
-  const deleteLeads = useDeleteLeads();
   const updateLead = useUpdateLead();
   const createVisit = useCreateVisit();
   const { user } = useAuth();
@@ -285,16 +284,6 @@ const Leads = () => {
     try {
       await bulkUpdate.mutateAsync({ ids: Array.from(selectedIds), updates: { status: status as any } });
       toast.success(`${selectedIds.size} leads updated`);
-      setSelectedIds(new Set());
-    } catch (err: any) { toast.error(err.message); }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-    if (!confirm(`Delete ${selectedIds.size} leads? This cannot be undone.`)) return;
-    try {
-      await deleteLeads.mutateAsync(Array.from(selectedIds));
-      toast.success(`${selectedIds.size} leads deleted`);
       setSelectedIds(new Set());
     } catch (err: any) { toast.error(err.message); }
   };
@@ -782,9 +771,6 @@ const Leads = () => {
             <SelectTrigger className="h-7 w-[140px] text-2xs rounded-lg"><SelectValue placeholder="Change status..." /></SelectTrigger>
             <SelectContent>{pipelineStages.map((s: any) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}</SelectContent>
           </Select>
-          <Button variant="destructive" size="sm" className="h-7 text-2xs gap-1 rounded-lg" onClick={handleBulkDelete}>
-            <Trash2 size={10} /> Delete
-          </Button>
           <button onClick={() => setSelectedIds(new Set())} className="text-2xs text-muted-foreground hover:text-foreground ml-auto transition-colors">
             Clear
           </button>

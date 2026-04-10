@@ -86,22 +86,3 @@ export const useBulkUpdateLeads = () => {
     },
   });
 };
-
-export const useDeleteLeads = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (ids: string[]) => {
-      const res = await fetch('/api/leads/bulk', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
-      });
-      if (!res.ok) throw new Error('Failed to delete leads');
-      return res.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['leads'] });
-      qc.invalidateQueries({ queryKey: ['leads-paginated'] });
-    },
-  });
-};

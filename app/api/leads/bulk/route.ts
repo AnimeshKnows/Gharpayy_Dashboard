@@ -164,62 +164,7 @@ export async function DELETE(req: Request) {
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!['super_admin', 'manager', 'admin', 'member'].includes(authUser.role)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const { searchParams } = new URL(req.url);
-    const idsString = searchParams.get('ids');
-    let ids: string[] = [];
-    
-    if (idsString) {
-      ids = idsString.split(',').filter(Boolean);
-    } else {
-      const body = await req.json().catch(() => ({}));
-      ids = body.ids || [];
-    }
-
-    if (!ids || ids.length === 0) return NextResponse.json({ error: 'IDs required' }, { status: 400 });
-
-    await connectToDatabase();
-    
-    const deleteQuery = authUser.role === 'member'
-      ? { _id: { $in: ids }, assignedMemberId: authUser.id }
-      : { _id: { $in: ids } };
-    
-    // Fetch leads before deletion to preserve names in logs
-    const leadsToDelete = await Lead.find(deleteQuery, '_id name');
-    
-    const result = await Lead.deleteMany(deleteQuery);
-
-    try {
-      if (leadsToDelete.length > 0) {
-        const activityLogs = leadsToDelete.map((doc: any) => ({
-          leadId: doc._id.toString(),
-          leadName: doc.name,
-          userId: authUser.id,
-          userName: authUser.fullName,
-          userRole: authUser.role,
-          actionType: 'deleted',
-          createdAt: new Date()
-        }));
-        await LeadActivity.insertMany(activityLogs);
-      } else {
-        // Fallback: If Lead was already gone, try to create a name-less log at least, 
-        // or skip if we only want named logs. For now, we try to at least log the IDs.
-        const activityLogs = ids.map((id: string) => ({
-          leadId: id,
-          userId: authUser.id,
-          userName: authUser.fullName,
-          userRole: authUser.role,
-          actionType: 'deleted',
-          createdAt: new Date()
-        }));
-        await LeadActivity.insertMany(activityLogs);
-      }
-    } catch (e) { console.error('Failed to log bulk deletion', e); }
-
-    return NextResponse.json({ count: result.deletedCount });
+    return NextResponse.json({ error: 'Lead deletion is disabled for all users' }, { status: 403 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
