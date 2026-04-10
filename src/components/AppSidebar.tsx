@@ -3,7 +3,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Kanban, CalendarCheck, BarChart3, Settings,
   MessageSquare, History, Trophy, X, Moon, Sun, Building2, Bed, TrendingUp,
-  Map, Sparkles, Receipt, Globe, UserCircle, LogOut
+  Map, Sparkles, Receipt, Globe, UserCircle, LogOut, CreditCard,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,24 +11,25 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatUserLabel } from '@/lib/userDisplay';
 
 const salesItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/leads', icon: Users, label: 'Leads' },
-  { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
-  { to: '/visits', icon: CalendarCheck, label: 'Tours' },
-  { to: '/conversations', icon: MessageSquare, label: 'Messages' },
-  { to: '/bookings', icon: Receipt, label: 'Bookings' },
-  { to: '/analytics', icon: BarChart3, label: 'Analytics' },
-  { to: '/historical', icon: History, label: 'Historical' },
-  { to: '/leaderboard', icon: Trophy, label: 'Leaderboard' },
+  { to: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/leads',       icon: Users,           label: 'Leads' },
+  { to: '/pipeline',    icon: Kanban,          label: 'Pipeline' },
+  { to: '/visits',      icon: CalendarCheck,   label: 'Tours' },
+  { to: '/conversations',icon: MessageSquare,  label: 'Messages' },
+  { to: '/bookings',    icon: Receipt,         label: 'Bookings' },
+  { to: '/payments',    icon: CreditCard,      label: 'Payments' }, // ← NEW
+  { to: '/analytics',   icon: BarChart3,       label: 'Analytics' },
+  { to: '/historical',  icon: History,         label: 'Historical' },
+  { to: '/leaderboard', icon: Trophy,          label: 'Leaderboard' },
 ];
 
 const supplyItems = [
-  { to: '/owners', icon: Building2, label: 'Owners' },
-  { to: '/inventory', icon: Bed, label: 'Inventory' },
-  { to: '/availability', icon: Map, label: 'Availability' },
-  { to: '/effort', icon: TrendingUp, label: 'Effort' },
-  { to: '/matching', icon: Sparkles, label: 'Matching' },
-  { to: '/zones', icon: Globe, label: 'Zones' },
+  { to: '/owners',      icon: Building2,  label: 'Owners' },
+  { to: '/inventory',   icon: Bed,        label: 'Inventory' },
+  { to: '/availability',icon: Map,        label: 'Availability' },
+  { to: '/effort',      icon: TrendingUp, label: 'Effort' },
+  { to: '/matching',    icon: Sparkles,   label: 'Matching' },
+  { to: '/zones',       icon: Globe,      label: 'Zones' },
 ];
 
 const portalItems = [
@@ -40,18 +41,30 @@ const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => voi
   const { signOut, user } = useAuth();
   const [dark, setDark] = useState(false);
   const userLabel = formatUserLabel(user);
+
   useEffect(() => {
     setDark(document.documentElement.classList.contains('dark'));
   }, []);
-  useEffect(() => { document.documentElement.classList.toggle('dark', dark); }, [dark]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+  }, [dark]);
 
   const renderGroup = (label: string, items: typeof salesItems) => (
     <>
-      <p className="px-2.5 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'hsl(var(--sidebar-fg))' }}>{label}</p>
+      <p className="px-2.5 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em]"
+        style={{ color: 'hsl(var(--sidebar-fg))' }}>
+        {label}
+      </p>
       {items.map((item) => {
         const isActive = pathname === item.to;
         return (
-          <NavLink key={item.to} href={item.to} onClick={onClose} className={`sidebar-link ${isActive ? 'active' : ''}`}>
+          <NavLink
+            key={item.to}
+            href={item.to}
+            onClick={onClose}
+            className={`sidebar-link ${isActive ? 'active' : ''}`}
+          >
             <item.icon size={15} strokeWidth={isActive ? 2 : 1.6} />
             <span>{item.label}</span>
           </NavLink>
@@ -64,8 +77,12 @@ const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => voi
     <>
       <AnimatePresence>
         {isOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-40 bg-foreground/20 glass lg:hidden" onClick={onClose} />
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-40 bg-foreground/20 glass lg:hidden"
+            onClick={onClose}
+          />
         )}
       </AnimatePresence>
 
@@ -74,13 +91,15 @@ const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => voi
         style={{ background: 'hsl(var(--sidebar-bg))', borderColor: 'hsl(var(--sidebar-border))' }}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between px-4 h-14 border-b" style={{ borderColor: 'hsl(var(--sidebar-border))' }}>
+        <div className="flex items-center justify-between px-4 h-14 border-b"
+          style={{ borderColor: 'hsl(var(--sidebar-border))' }}>
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center">
               <span className="text-accent-foreground font-semibold text-xs">G</span>
             </div>
             <div>
-              <h1 className="font-semibold text-[13px] tracking-tight" style={{ color: 'hsl(var(--sidebar-active-fg))' }}>Gharpayy</h1>
+              <h1 className="font-semibold text-[13px] tracking-tight"
+                style={{ color: 'hsl(var(--sidebar-active-fg))' }}>Gharpayy</h1>
               <p className="text-[9px] -mt-0.5" style={{ color: 'hsl(var(--sidebar-fg))' }}>Growth OS</p>
             </div>
           </div>
@@ -102,15 +121,13 @@ const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => voi
             {dark ? <Sun size={15} strokeWidth={1.6} /> : <Moon size={15} strokeWidth={1.6} />}
             <span>{dark ? 'Light' : 'Dark'}</span>
           </button>
-          <NavLink href="/settings" onClick={onClose} className={`sidebar-link ${pathname === '/settings' ? 'active' : ''}`}>
+          <NavLink href="/settings" onClick={onClose}
+            className={`sidebar-link ${pathname === '/settings' ? 'active' : ''}`}>
             <Settings size={15} strokeWidth={1.6} />
             <span>Settings</span>
           </NavLink>
           <button
-            onClick={async () => {
-              onClose?.();
-              await signOut();
-            }}
+            onClick={async () => { onClose?.(); await signOut(); }}
             className="sidebar-link w-full"
           >
             <LogOut size={15} strokeWidth={1.6} />
@@ -120,10 +137,13 @@ const AppSidebar = ({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => voi
           <div className="mt-2 mx-0.5 p-2.5 rounded-lg" style={{ background: 'hsl(var(--sidebar-hover))' }}>
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center">
-                <span className="text-[9px] font-bold text-accent">{(user?.username || user?.fullName || 'U').slice(0, 1).toUpperCase()}</span>
+                <span className="text-[9px] font-bold text-accent">
+                  {(user?.username || user?.fullName || 'U').slice(0, 1).toUpperCase()}
+                </span>
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-medium truncate" style={{ color: 'hsl(var(--sidebar-active-fg))' }}>
+                <p className="text-[11px] font-medium truncate"
+                  style={{ color: 'hsl(var(--sidebar-active-fg))' }}>
                   {userLabel || 'Signed in user'}
                 </p>
               </div>
