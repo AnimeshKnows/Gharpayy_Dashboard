@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import KpiCard from '@/components/KpiCard';
-import { usePayments, usePaymentStats, useApprovePayment, useUpdatePayment, useDeletePayment, useCreatePayment } from '@/hooks/usePayments';
+import { usePayments, usePaymentStats, useApprovePayment, useUpdatePayment, useDeletePayment, useCreatePayment, useMarkAsPaid } from '@/hooks/usePayments';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,7 @@ import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import {
   IndianRupee, Clock, CheckCircle, XCircle, TrendingUp,
-  ExternalLink, Send, Plus, Trash2, Timer,
+  ExternalLink, Send, Plus, Trash2, Timer, BadgeCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -47,10 +47,12 @@ export default function PaymentsPage() {
   const updatePayment  = useUpdatePayment();
   const deletePayment  = useDeletePayment();
   const createPayment  = useCreatePayment();
+  const markAsPaid     = useMarkAsPaid();
 
   const [filterStatus, setFilterStatus] = useState('all');
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [markPaidId, setMarkPaidId] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -222,6 +224,19 @@ export default function PaymentsPage() {
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-1.5">
+                        {/* Mark as Paid */}
+                        {b.status === 'approved' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-[10px] rounded-lg px-2 gap-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                            onClick={() => setMarkPaidId(id)}
+                            disabled={markAsPaid.isPending}
+                          >
+                            <BadgeCheck size={10} /> Paid
+                          </Button>
+                        )}
+
                         {/* Send Offer / Copy Link */}
                         {canSendOffer && (
                           <Button
@@ -311,6 +326,31 @@ export default function PaymentsPage() {
               onClick={async () => { await deletePayment.mutateAsync(deleteId!); setDeleteId(null); }}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Mark as Paid confirmation */}
+      <AlertDialog open={!!markPaidId} onOpenChange={() => setMarkPaidId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <BadgeCheck size={16} className="text-emerald-400" /> Confirm Payment Received?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark the booking as <strong>Paid</strong> and record the current time as payment timestamp.
+              Make sure you&apos;ve verified the UPI transfer before confirming.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={async () => { await markAsPaid.mutateAsync(markPaidId!); setMarkPaidId(null); }}
+              disabled={markAsPaid.isPending}
+            >
+              {markAsPaid.isPending ? 'Saving…' : 'Yes, Mark as Paid'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -22,9 +22,11 @@ export interface IPaymentBooking extends Document {
   notes?: string;
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
+  extensionUsed: boolean;
   adminUnread: boolean;
   viewedAt?: Date;
   approvedAt?: Date;
+  paidAt?: Date;
   offerExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -53,9 +55,11 @@ const PaymentBookingSchema: Schema = new Schema(
     notes:              { type: String },
     razorpayOrderId:    { type: String },
     razorpayPaymentId:  { type: String },
+    extensionUsed:      { type: Boolean, default: false },
     adminUnread:        { type: Boolean, default: false },
     viewedAt:           { type: Date },
     approvedAt:         { type: Date },
+    paidAt:             { type: Date },
     offerExpiresAt:     { type: Date },
   },
   { timestamps: true }

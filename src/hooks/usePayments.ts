@@ -86,6 +86,26 @@ export function useApprovePayment() {
   });
 }
 
+export function useMarkAsPaid() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/payments/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'paid', paidAt: new Date().toISOString() }),
+      });
+      if (!res.ok) throw new Error('Failed to mark as paid');
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['payments'] });
+      toast.success('Marked as paid ✓');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 export function useDeletePayment() {
   const qc = useQueryClient();
   return useMutation({
