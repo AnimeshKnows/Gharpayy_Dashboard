@@ -65,8 +65,7 @@ const CommandPalette = ({ open, onOpenChange }: CommandPaletteProps) => {
 
   const triggerQuickAdd = () => {
     onOpenChange(false);
-    // Dispatch a custom event that QuickAddLead listens to
-    window.dispatchEvent(new CustomEvent('open-quick-add'));
+    window.open('/leads/intake', '_blank', 'noopener,noreferrer');
   };
 
   return (

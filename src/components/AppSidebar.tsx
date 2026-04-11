@@ -11,16 +11,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatUserLabel } from '@/lib/userDisplay';
 
 const salesItems = [
-  { to: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/leads',       icon: Users,           label: 'Leads' },
-  { to: '/pipeline',    icon: Kanban,          label: 'Pipeline' },
-  { to: '/visits',      icon: CalendarCheck,   label: 'Tours' },
-  { to: '/conversations',icon: MessageSquare,  label: 'Messages' },
-  { to: '/bookings',    icon: Receipt,         label: 'Bookings' },
-  { to: '/payments',    icon: CreditCard,      label: 'Payments' }, // ← NEW
-  { to: '/analytics',   icon: BarChart3,       label: 'Analytics' },
-  { to: '/historical',  icon: History,         label: 'Historical' },
-  { to: '/leaderboard', icon: Trophy,          label: 'Leaderboard' },
+  { to: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/leads',        icon: Users,           label: 'Leads' },
+  { to: '/pipeline',     icon: Kanban,          label: 'Pipeline' },
+  { to: '/visits',       icon: CalendarCheck,   label: 'Tours' },
+  { to: '/conversations',icon: MessageSquare,   label: 'Messages' },
+  { to: '/bookings',     icon: Receipt,         label: 'Bookings' },
+  { to: '/payments',     icon: CreditCard,      label: 'Payments' },
+  { to: '/analytics',    icon: BarChart3,       label: 'Analytics' },
+  { to: '/historical',   icon: History,         label: 'Historical' },
+  { to: '/leaderboard',  icon: Trophy,          label: 'Leaderboard' },
 ];
 
 const supplyItems = [
