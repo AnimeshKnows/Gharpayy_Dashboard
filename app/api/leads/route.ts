@@ -104,6 +104,10 @@ export async function GET(req: Request) {
     const sortQuery: Record<string, 1 | -1> = sort === 'alphabetical'
       ? { name: 1, createdAt: -1, _id: 1 }
       : { createdAt: sort === 'oldest' ? 1 : -1, _id: sort === 'oldest' ? 1 : -1 };
+    const memberAssignmentFilterMode =
+      authUser.role === 'member' && (zone === 'assigned_by_me' || zone === 'assigned_to_me')
+        ? zone
+        : null;
 
     const query: any = {};
     const andFilters: any[] = [];
@@ -111,15 +115,29 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Members can only see leads currently assigned to them
+    // Member default list: only accepted leads assigned to self.
     if (authUser.role === 'member') {
-      andFilters.push({ assignedMemberId: authUser.id });
-      andFilters.push({
-        $or: [
-          { assignmentStatus: { $exists: false } },
-          { assignmentStatus: { $ne: 'pending' } },
-        ],
-      });
+      if (memberAssignmentFilterMode === 'assigned_by_me') {
+        andFilters.push({ assignmentRequestedById: authUser.id });
+        andFilters.push({ assignedMemberId: { $ne: authUser.id } });
+      } else if (memberAssignmentFilterMode === 'assigned_to_me') {
+        andFilters.push({ assignedMemberId: authUser.id });
+        andFilters.push({ assignmentRequestedById: { $exists: true, $ne: authUser.id } });
+        andFilters.push({
+          $or: [
+            { assignmentStatus: { $exists: false } },
+            { assignmentStatus: { $ne: 'pending' } },
+          ],
+        });
+      } else {
+        andFilters.push({ assignedMemberId: authUser.id });
+        andFilters.push({
+          $or: [
+            { assignmentStatus: { $exists: false } },
+            { assignmentStatus: { $ne: 'pending' } },
+          ],
+        });
+      }
     }
 
     if (authUser.role === 'admin') {
@@ -166,6 +184,8 @@ export async function GET(req: Request) {
             });
           }
         }
+      } else if (zone === 'assigned_by_me' || zone === 'assigned_to_me') {
+        // Member assignment modes are handled above in role filters.
       } else if (zone !== 'all') {
         query.zone = zone;
       }

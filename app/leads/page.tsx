@@ -285,12 +285,20 @@ const Leads = () => {
   const canManageLeadAssignments = ['super_admin', 'manager', 'admin', 'member'].includes(user?.role || '');
   const canAddLead = ['super_admin', 'manager', 'admin', 'member'].includes(user?.role || '');
   const isScopedZoneRole = ['admin', 'member'].includes(user?.role || '');
+  const isMemberRole = user?.role === 'member';
+  const isAssignedByMeReadOnly = isMemberRole && filterZone === 'assigned_by_me';
 
   useEffect(() => {
     if (isScopedZoneRole && (filterZone === 'all' || !filterZone)) {
       setFilterZone('my_zones');
     }
   }, [isScopedZoneRole, filterZone]);
+
+  useEffect(() => {
+    if (!isAssignedByMeReadOnly) return;
+    setExpandedId(null);
+    setSelectedIds(new Set());
+  }, [isAssignedByMeReadOnly]);
 
   useEffect(() => {
     if (!scheduleAssignedTo) return;
@@ -330,6 +338,8 @@ const Leads = () => {
         filterZone !== 'all' &&
         filterZone !== 'my_zones' &&
         filterZone !== 'other_zones' &&
+        filterZone !== 'assigned_by_me' &&
+        filterZone !== 'assigned_to_me' &&
         (l as any).zone !== filterZone
       ) return false;
       
@@ -361,7 +371,7 @@ const Leads = () => {
   };
 
   const handleInlineStageChange = async (lead: LeadWithRelations, stageKey: string, stageLabel: string) => {
-    if (updatingStageLeadId || lead.status === stageKey) return;
+    if (isAssignedByMeReadOnly || updatingStageLeadId || lead.status === stageKey) return;
     try {
       setUpdatingStageLeadId(lead.id);
       setUpdatingStageTarget({ leadId: lead.id, stageKey });
@@ -712,6 +722,8 @@ const Leads = () => {
                   <>
                     <SelectItem value="my_zones">My Zones</SelectItem>
                     <SelectItem value="other_zones">Other Zones</SelectItem>
+                    {isMemberRole && <SelectItem value="assigned_by_me">Assigned by Me</SelectItem>}
+                    {isMemberRole && <SelectItem value="assigned_to_me">Assigned to Me</SelectItem>}
                   </>
                 ) : (
                   <>
@@ -840,6 +852,8 @@ const Leads = () => {
                   <>
                     <SelectItem value="my_zones">My Zones</SelectItem>
                     <SelectItem value="other_zones">Other Zones</SelectItem>
+                    {isMemberRole && <SelectItem value="assigned_by_me">Assigned by Me</SelectItem>}
+                    {isMemberRole && <SelectItem value="assigned_to_me">Assigned to Me</SelectItem>}
                   </>
                 ) : (
                   <>
@@ -909,7 +923,7 @@ const Leads = () => {
       </div>
 
       {/* Bulk actions */}
-      {selectedIds.size > 0 && canManageLeadAssignments && (
+      {selectedIds.size > 0 && canManageLeadAssignments && !isAssignedByMeReadOnly && (
         <motion.div
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1003,7 +1017,10 @@ const Leads = () => {
               <div
                 key={lead.id}
                 className="lc-card"
-                onClick={() => setExpandedId(lead.id)}
+                onClick={() => {
+                  if (isAssignedByMeReadOnly) return;
+                  setExpandedId(lead.id);
+                }}
                 style={{
                   background: isDuplicateLead ? 'rgba(251,113,133,0.045)' : 'var(--lc-bg1)',
                   border: isDuplicateLead ? '1px solid rgba(251,113,133,0.28)' : '1px solid var(--lc-line)',
@@ -1024,7 +1041,7 @@ const Leads = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   {/* Checkbox */}
-                  {canManageLeadAssignments && (
+                  {canManageLeadAssignments && !isAssignedByMeReadOnly && (
                     <div onClick={e => e.stopPropagation()} style={{ paddingTop: 6, flexShrink: 0 }}>
                       <Checkbox checked={selectedIds.has(lead.id)} onCheckedChange={() => toggleSelect(lead.id)} />
                     </div>
@@ -1149,20 +1166,26 @@ const Leads = () => {
                         <div style={{ height: '100%', width: `${progress}%`, background: progressColor, borderRadius: 2, transition: 'width 0.3s ease' }} />
                       </div>
                       <span className="lc-progress-pct" style={{ fontSize: 8.5, fontWeight: 700, color: progressColor, fontFamily: 'var(--lc-mono)', textAlign: 'right', minWidth: 18 }}>{progress}%</span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); openScheduleFromLead(lead, m.zone || ''); }}
-                        className="inline-flex items-center gap-1 rounded-md border border-[var(--lc-line)] bg-[var(--lc-bg2)] px-1.5 py-0.5 text-[8.5px] font-semibold text-[var(--lc-mid)] hover:bg-[var(--lc-bg3)]"
-                        title="Tour"
-                      >
-                        <CalendarDays size={9} />
-                        Tour
-                      </button>
+                      {!isAssignedByMeReadOnly && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); openScheduleFromLead(lead, m.zone || ''); }}
+                          className="inline-flex items-center gap-1 rounded-md border border-[var(--lc-line)] bg-[var(--lc-bg2)] px-1.5 py-0.5 text-[8.5px] font-semibold text-[var(--lc-mid)] hover:bg-[var(--lc-bg3)]"
+                          title="Tour"
+                        >
+                          <CalendarDays size={9} />
+                          Tour
+                        </button>
+                      )}
                       <a href={`tel:${lead.phone}`} style={{ padding: 4, borderRadius: 5, background: 'var(--lc-bg2)', border: '1px solid var(--lc-line)', display: 'flex' }} title="Call">
                         <PhoneCall size={10} color="var(--lc-mid)" />
                       </a>
                       <button 
-                        onClick={(e) => { e.stopPropagation(); setExpandedId(lead.id); }} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isAssignedByMeReadOnly) return;
+                          setExpandedId(lead.id);
+                        }} 
                         style={{ padding: 4, borderRadius: 5, background: 'var(--lc-bg2)', border: '1px solid var(--lc-line)', display: 'flex', cursor: 'pointer' }} 
                         title="Expand"
                       >
@@ -1189,9 +1212,11 @@ const Leads = () => {
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openLeadEditInNewTab(lead)}>
-                            Edit Lead
-                          </DropdownMenuItem>
+                          {!isAssignedByMeReadOnly && (
+                            <DropdownMenuItem onClick={() => openLeadEditInNewTab(lead)}>
+                              Edit Lead
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className="font-mono text-[10px] text-muted-foreground cursor-pointer"
                             onSelect={() => {
@@ -1247,7 +1272,7 @@ const Leads = () => {
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
                     {/* Checkbox */}
-                    {canManageLeadAssignments && (
+                    {canManageLeadAssignments && !isAssignedByMeReadOnly && (
                       <div onClick={e => e.stopPropagation()} style={{ paddingTop: 6, flexShrink: 0 }}>
                         <Checkbox checked={selectedIds.has(lead.id)} onCheckedChange={() => toggleSelect(lead.id)} />
                       </div>
@@ -1370,15 +1395,17 @@ const Leads = () => {
                         <div style={{ height: '100%', width: `${progress}%`, background: progressColor, borderRadius: 2, transition: 'width 0.3s ease' }} />
                       </div>
                       <span className="lc-progress-pct" style={{ fontSize: 8.5, fontWeight: 700, color: progressColor, fontFamily: 'var(--lc-mono)', textAlign: 'right', minWidth: 18 }}>{progress}%</span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); openScheduleFromLead(lead, m.zone || ''); }}
-                        className="inline-flex items-center gap-1 rounded-md border border-[var(--lc-line)] bg-[var(--lc-bg2)] px-1.5 py-0.5 text-[8.5px] font-semibold text-[var(--lc-mid)] hover:bg-[var(--lc-bg3)]"
-                        title="Tour"
-                      >
-                        <CalendarDays size={9} />
-                        Tour
-                      </button>
+                      {!isAssignedByMeReadOnly && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); openScheduleFromLead(lead, m.zone || ''); }}
+                          className="inline-flex items-center gap-1 rounded-md border border-[var(--lc-line)] bg-[var(--lc-bg2)] px-1.5 py-0.5 text-[8.5px] font-semibold text-[var(--lc-mid)] hover:bg-[var(--lc-bg3)]"
+                          title="Tour"
+                        >
+                          <CalendarDays size={9} />
+                          Tour
+                        </button>
+                      )}
                       <a href={`tel:${lead.phone}`} style={{ padding: 4, borderRadius: 5, background: 'var(--lc-bg2)', border: '1px solid var(--lc-line)', display: 'flex' }} title="Call">
                         <PhoneCall size={10} color="var(--lc-mid)" />
                       </a>
@@ -1413,9 +1440,11 @@ const Leads = () => {
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openLeadEditInNewTab(lead)}>
-                            Edit Lead
-                          </DropdownMenuItem>
+                          {!isAssignedByMeReadOnly && (
+                            <DropdownMenuItem onClick={() => openLeadEditInNewTab(lead)}>
+                              Edit Lead
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className="font-mono text-[10px] text-muted-foreground cursor-pointer"
                             onSelect={() => {
@@ -1447,7 +1476,7 @@ const Leads = () => {
                           key={stage.key}
                           type="button"
                           onClick={() => handleInlineStageChange(lead, stage.key, stage.label)}
-                          disabled={isStageUpdating || isCurrent}
+                          disabled={isAssignedByMeReadOnly || isStageUpdating || isCurrent}
                           title={isCurrent ? 'Current stage' : `Move to ${stage.label}`}
                           style={{
                             display: 'flex',
@@ -1459,7 +1488,7 @@ const Leads = () => {
                             border: 'none',
                             background: 'transparent',
                             padding: 0,
-                            cursor: isStageUpdating || isCurrent ? 'not-allowed' : 'pointer',
+                            cursor: isAssignedByMeReadOnly || isStageUpdating || isCurrent ? 'not-allowed' : 'pointer',
                             opacity: isStageUpdating && !isCurrent ? 0.55 : 1,
                           }}
                         >
