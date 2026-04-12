@@ -177,6 +177,36 @@ export const useLeadsInfinite = (pageSize = 100) =>
     staleTime: 30000,
   });
 
+export const useLeadsInfiniteByStatus = (status: string, pageSize = 10) =>
+  useInfiniteQuery({
+    queryKey: ['leads-infinite', status, pageSize],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }: { pageParam: number }) => {
+      const skip = pageParam * pageSize;
+      const params = new URLSearchParams();
+      params.set('skip', String(skip));
+      params.set('limit', String(pageSize));
+      params.set('status', status);
+
+      const res = await fetch(`/api/leads?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch leads');
+      const data = await res.json();
+      const pageLeads = (data.leads || data) as LeadWithRelations[];
+      const total = typeof data.total === 'number' ? data.total : undefined;
+      return { leads: pageLeads, total };
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      const loadedCount = allPages.reduce((sum, page) => sum + page.leads.length, 0);
+
+      if (typeof lastPage.total === 'number') {
+        return loadedCount < lastPage.total ? allPages.length : undefined;
+      }
+
+      return lastPage.leads.length >= pageSize ? allPages.length : undefined;
+    },
+    staleTime: 30000,
+  });
+
 export const useLeadsByStatus = (status: string, page = 0, pageSize = 50) =>
   useQuery({
     queryKey: ['leads-by-status', status, page, pageSize],

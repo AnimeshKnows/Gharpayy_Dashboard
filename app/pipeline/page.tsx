@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import AppLayout from '@/components/AppLayout';
 import LeadCard from '@/components/LeadCard';
 import LeadDetailDrawer from '@/components/LeadDetailDrawer';
 import EditLeadDialog from '@/components/EditLeadDialog';
-import { useLeadsInfinite, usePipelineStages, useSavePipelineStages, useUpdateLead, type PipelineStageConfig } from '@/hooks/useCrmData';
+import { useLeadsInfiniteByStatus, usePipelineStages, useSavePipelineStages, useUpdateLead, type PipelineStageConfig } from '@/hooks/useCrmData';
 import { PIPELINE_STAGES, type PipelineStage } from '@/types/crm';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -18,7 +18,7 @@ import { useDroppable, useDraggable } from '@dnd-kit/core';
 import { toast } from 'sonner';
 import type { LeadWithRelations } from '@/hooks/useCrmData';
 import { motion } from 'framer-motion';
-import { ArrowRight, MoreVertical, Plus, Trash2, GripVertical } from 'lucide-react';
+import { MoreVertical, Plus, Trash2, GripVertical } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +29,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+
+const PIPELINE_STAGE_PAGE_SIZE = 50;
 
 function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id });
@@ -82,6 +84,85 @@ function DraggableCard({ lead, onClick, onEdit }: { lead: LeadWithRelations; onC
           </div>
         }
       />
+    </div>
+  );
+}
+
+function PipelineStageColumn({
+  stage,
+  onOpenDetail,
+  onEdit,
+}: {
+  stage: PipelineStageConfig;
+  onOpenDetail: (lead: LeadWithRelations) => void;
+  onEdit: (lead: LeadWithRelations) => void;
+}) {
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    fetchNextPage,
+    hasNextPage,
+  } = useLeadsInfiniteByStatus(stage.key, PIPELINE_STAGE_PAGE_SIZE);
+
+  const stageLeads = useMemo(
+    () => (data?.pages || []).flatMap((page) => page.leads),
+    [data]
+  );
+  const totalLeads = data?.pages?.[0]?.total ?? stageLeads.length;
+  const visibleCount = stageLeads.length;
+
+  return (
+    <div className="flex items-start">
+      <motion.div
+        className="pipeline-column bg-secondary/30 w-[272px] flex flex-col"
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+      >
+        <div className="flex items-center justify-between mb-2 px-1">
+          <div className="flex items-center gap-1.5">
+            <h3 className="font-semibold text-[11px] text-foreground">{stage.label}</h3>
+          </div>
+          <span className="text-[10px] font-medium bg-card px-1.5 py-0.5 rounded-md text-muted-foreground border border-border">
+            {totalLeads}
+          </span>
+        </div>
+
+        <DroppableColumn id={stage.key}>
+          {isLoading && stageLeads.length === 0 ? (
+            <div className="space-y-2">
+              {[...Array(PIPELINE_STAGE_PAGE_SIZE)].map((_, index) => (
+                <Skeleton key={index} className="h-[92px] rounded-xl" />
+              ))}
+            </div>
+          ) : (
+            <>
+              {stageLeads.map((lead) => (
+                <DraggableCard key={lead.id} lead={lead} onClick={() => onOpenDetail(lead)} onEdit={onEdit} />
+              ))}
+              {visibleCount === 0 && (
+                <div className="text-center py-8 text-[11px] text-muted-foreground">No leads</div>
+              )}
+            </>
+          )}
+        </DroppableColumn>
+
+        {hasNextPage && (
+          <div className="px-1 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full text-[11px]"
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+            >
+              {isFetchingNextPage ? 'Loading...' : `Load more (${visibleCount}/${totalLeads})`}
+            </Button>
+          </div>
+        )}
+      </motion.div>
     </div>
   );
 }
@@ -297,49 +378,20 @@ function EditStagesDialog({
 
 const Pipeline = () => {
   const { user } = useAuth();
-  const {
-    data: leadsPages,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useLeadsInfinite(100);
-  const { data: pipelineStagesData } = usePipelineStages();
+  const { data: pipelineStagesData, isLoading } = usePipelineStages();
   const savePipelineStages = useSavePipelineStages();
   const updateLead = useUpdateLead();
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeLead, setActiveLead] = useState<LeadWithRelations | null>(null);
   const [selectedLead, setSelectedLead] = useState<LeadWithRelations | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedLeadForEdit, setSelectedLeadForEdit] = useState<LeadWithRelations | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editStagesOpen, setEditStagesOpen] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  const leads = useMemo(
-    () => (leadsPages?.pages || []).flatMap((page) => page.leads),
-    [leadsPages]
-  );
   const pipelineStages: PipelineStageConfig[] =
     (pipelineStagesData && pipelineStagesData.length > 0)
       ? pipelineStagesData
       : PIPELINE_STAGES.map((stage, index) => ({ ...stage, order: index }));
   const canEditStages = user?.role === 'super_admin';
-
-  useEffect(() => {
-    const node = loadMoreRef.current;
-    if (!node) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
-        }
-      },
-      { root: null, rootMargin: '350px 0px', threshold: 0 }
-    );
-
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -361,35 +413,15 @@ const Pipeline = () => {
 
     return [];
   };
-  const activeLead = leads.find(l => l.id === activeId);
-
-  // Conversion rates between stages
-  const conversionRates = useMemo(() => {
-    if (!leads.length) return {};
-    const rates: Record<string, number> = {};
-    for (let i = 0; i < pipelineStages.length - 1; i++) {
-      const current = leads.filter(l => {
-        const idx = pipelineStages.findIndex(s => s.key === l.status);
-        return idx >= i;
-      }).length;
-      const next = leads.filter(l => {
-        const idx = pipelineStages.findIndex(s => s.key === l.status);
-        return idx >= i + 1;
-      }).length;
-      rates[pipelineStages[i].key] = current > 0 ? Math.round((next / current) * 100) : 0;
-    }
-    return rates;
-  }, [leads, pipelineStages]);
-
-  const handleDragStart = (event: DragStartEvent) => setActiveId(event.active.id as string);
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveLead((event.active.data.current?.lead as LeadWithRelations | undefined) || null);
+  };
   const handleDragEnd = async (event: DragEndEvent) => {
-    setActiveId(null);
+    setActiveLead(null);
     const { active, over } = event;
     if (!over) return;
     const leadId = active.id as string;
     const newStatus = over.id as PipelineStage;
-    const lead = leads.find(l => l.id === leadId);
-    if (!lead || lead.status === newStatus) return;
     try {
       await updateLead.mutateAsync({ id: leadId, status: newStatus });
       toast.success(`Moved to ${pipelineStages.find(s => s.key === newStatus)?.label || newStatus}`);
@@ -429,56 +461,15 @@ const Pipeline = () => {
       <DndContext sensors={sensors} collisionDetection={columnOnlyCollision} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="overflow-x-auto pb-4">
           <div className="flex gap-2 min-w-max">
-            {pipelineStages.map((stage, i) => {
-              const stageLeads = leads.filter(l => l.status === stage.key);
-              const rate = conversionRates[stage.key];
-              return (
-                <div key={stage.key} className="flex items-start">
-                  <motion.div
-                    className="pipeline-column bg-secondary/30 w-[272px] flex flex-col"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25, delay: i * 0.03 }}
-                  >
-                    <div className="flex items-center justify-between mb-2 px-1">
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="font-semibold text-[11px] text-foreground">{stage.label}</h3>
-                      </div>
-                      <span className="text-[10px] font-medium bg-card px-1.5 py-0.5 rounded-md text-muted-foreground border border-border">
-                        {stageLeads.length}
-                      </span>
-                    </div>
-                    <DroppableColumn id={stage.key}>
-                      {stageLeads.map(lead => (
-                        <DraggableCard key={lead.id} lead={lead} onClick={() => openDetail(lead)} onEdit={openEdit} />
-                      ))}
-                      {stageLeads.length === 0 && (
-                        <div className="text-center py-8 text-[11px] text-muted-foreground">No leads</div>
-                      )}
-                    </DroppableColumn>
-                  </motion.div>
-
-                  {/* Conversion arrow between stages */}
-                  {i < pipelineStages.length - 1 && (
-                    <div className="flex flex-col items-center justify-start pt-8 px-0.5 min-w-[28px]">
-                      <ArrowRight size={10} className="text-muted-foreground/40" />
-                      {rate !== undefined && (
-                        <span className={`text-[9px] font-bold mt-0.5 ${
-                          rate >= 50 ? 'status-good' : rate >= 25 ? 'status-warn' : 'status-bad'
-                        }`}>
-                          {rate}%
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {pipelineStages.map((stage) => (
+              <PipelineStageColumn
+                key={stage.key}
+                stage={stage}
+                onOpenDetail={openDetail}
+                onEdit={openEdit}
+              />
+            ))}
           </div>
-        </div>
-
-        <div ref={loadMoreRef} className="py-3 text-center text-xs text-muted-foreground">
-          {isFetchingNextPage ? 'Loading more leads...' : hasNextPage ? 'Scroll to load more leads' : 'All leads loaded'}
         </div>
 
         <DragOverlay
