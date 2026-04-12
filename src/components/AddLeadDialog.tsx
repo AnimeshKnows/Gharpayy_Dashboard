@@ -409,7 +409,7 @@ const AddLeadDialog = ({ trigger, open: controlledOpen, onOpenChange, editingLea
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 35, height: 35, borderRadius: 9, background: `linear-gradient(135deg,${T.acc},${T.acc2})`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 16, color: "#fff", boxShadow: `0 0 20px rgba(108,92,231,0.25)` }}>G</div>
               <div>
-                <div style={{ fontFamily: T.mono, fontSize: 13, fontWeight: 600, color: T.hi, letterSpacing: "0.04em" }}>{isEditMode ? 'Lead Edit' : 'Lead Intake'}</div>
+                <div style={{ fontFamily: T.mono, fontSize: 13, fontWeight: 600, color: T.hi, letterSpacing: "0.04em" }}>{isEditMode ? 'MYT LEAD EDIT' : 'MYT LEAD INTAKE'}</div>
                 <div style={{ fontSize: 9, color: T.dim, letterSpacing: "0.1em", textTransform: "uppercase" as const }}>Geo Intelligence Engine</div>
               </div>
             </div>
