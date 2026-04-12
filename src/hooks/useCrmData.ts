@@ -38,6 +38,8 @@ export type LeadWithRelations = {
 
 export type LeaderboardPeriod = 'this_month' | 'all_time' | 'today' | 'last_30_days' | 'custom';
 
+export type AnalyticsPeriod = 'all' | 'today' | 'last_7_days' | 'last_30_days' | 'custom';
+
 export type CreatorLeaderboardEntry = {
   rank: number;
   userId: string;
@@ -54,6 +56,76 @@ export type CreatorLeaderboardResponse = {
   to: string | null;
   generatedAt: string;
   rankings: CreatorLeaderboardEntry[];
+};
+
+export type ZoneAnalyticsMetrics = {
+  totalMembers: number;
+  totalLeadsTillDate: number;
+  totalLeadsInRange: number;
+  duplicateLeadsTillDate: number;
+  duplicateLeadsInRange: number;
+  stageAnalytics: Array<{ key: string; label: string; count: number }>;
+  conversionRate: number;
+  sla: { under5: number; between5And30: number; over30: number; unknown: number };
+  stageAging: Array<{ key: string; label: string; avgDays: number; leads: number }>;
+  sourceMix: Array<{ source: string; leads: number; booked: number; conversionRate: number }>;
+  trend: Array<{ date: string; leads: number; booked: number }>;
+  activeMembers: number;
+  followUpPending: number;
+  topPerformer: { memberId: string; memberName: string; leads: number; booked: number; score: number } | null;
+  topPerformers: Array<{ memberId: string; memberName: string; leads: number; booked: number; score: number }>;
+};
+
+export type ZoneAnalyticsResponse = {
+  filters: {
+    zone: string | null;
+    compareZone?: string | null;
+    period: AnalyticsPeriod;
+    from: string | Date | null;
+    to: string | Date | null;
+  };
+  stages: Array<{ key: string; label: string }>;
+  metrics: ZoneAnalyticsMetrics;
+  compare: { zone: string; metrics: ZoneAnalyticsMetrics } | null;
+};
+
+export type MemberAnalyticsMetrics = {
+  memberId: string;
+  memberName: string;
+  totalLeadsAddedTillDate: number;
+  totalLeadsAddedInRange: number;
+  stageAnalytics: Array<{ key: string; label: string; count: number }>;
+  duplicateLeads: number;
+  duplicateRatio: number;
+  conversionRate: number;
+  avgFirstResponseMin: number;
+  avgStageMovementHours: number;
+  avgLeadScore: number;
+  sourcePerformance: Array<{ source: string; leads: number; booked: number; conversionRate: number }>;
+  visitOutcomes: { completed: number; noShow: number; rescheduled: number; cancelled: number };
+  staleLeads: number;
+  assignmentStats: { accepted: number; passedOn: number; pendingNow: number };
+};
+
+export type MemberAnalyticsResponse = {
+  filters: {
+    memberId: string;
+    compareMemberId?: string | null;
+    zone: string | null;
+    period: AnalyticsPeriod;
+    from: string | Date | null;
+    to: string | Date | null;
+  };
+  stages: Array<{ key: string; label: string }>;
+  metrics: MemberAnalyticsMetrics;
+  compare: MemberAnalyticsMetrics | null;
+};
+
+export type AnalyticsOptionsResponse = {
+  role: string;
+  members: Array<{ id: string; name: string; zones: string[] }>;
+  zones: Array<{ name: string }>;
+  canViewZoneAnalytics: boolean;
 };
 
 export type LeadsQueryFilters = {
@@ -481,4 +553,73 @@ export const useSavePipelineStages = () => {
     },
   });
 };
+
+export const useZoneAnalytics = (params: {
+  zone?: string;
+  compareZone?: string;
+  period?: AnalyticsPeriod;
+  from?: string;
+  to?: string;
+  enabled?: boolean;
+}) =>
+  useQuery({
+    queryKey: ['analytics-zone', params],
+    queryFn: async () => {
+      const query = new URLSearchParams();
+      if (params.zone && params.zone !== 'all') query.set('zone', params.zone);
+      if (params.compareZone && params.compareZone !== 'all') query.set('compareZone', params.compareZone);
+      if (params.period && params.period !== 'all') query.set('period', params.period);
+      if (params.from) query.set('from', params.from);
+      if (params.to) query.set('to', params.to);
+
+      const suffix = query.toString();
+      const res = await fetch(`/api/analytics/zones${suffix ? `?${suffix}` : ''}`);
+      if (!res.ok) throw new Error('Failed to fetch zone analytics');
+      return res.json() as Promise<ZoneAnalyticsResponse>;
+    },
+    enabled: params.enabled ?? true,
+    staleTime: 30000,
+  });
+
+export const useMemberAnalytics = (params: {
+  memberId?: string;
+  compareMemberId?: string;
+  zone?: string;
+  period?: AnalyticsPeriod;
+  from?: string;
+  to?: string;
+}) =>
+  useQuery({
+    queryKey: ['analytics-member', params],
+    queryFn: async () => {
+      if (!params.memberId) throw new Error('Member is required');
+
+      const query = new URLSearchParams();
+      query.set('memberId', params.memberId);
+      if (params.compareMemberId && params.compareMemberId !== params.memberId) {
+        query.set('compareMemberId', params.compareMemberId);
+      }
+      if (params.zone && params.zone !== 'all') query.set('zone', params.zone);
+      if (params.period && params.period !== 'all') query.set('period', params.period);
+      if (params.from) query.set('from', params.from);
+      if (params.to) query.set('to', params.to);
+
+      const res = await fetch(`/api/analytics/members?${query.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch member analytics');
+      return res.json() as Promise<MemberAnalyticsResponse>;
+    },
+    enabled: Boolean(params.memberId),
+    staleTime: 30000,
+  });
+
+export const useAnalyticsOptions = () =>
+  useQuery({
+    queryKey: ['analytics-options'],
+    queryFn: async () => {
+      const res = await fetch('/api/analytics/options');
+      if (!res.ok) throw new Error('Failed to fetch analytics options');
+      return res.json() as Promise<AnalyticsOptionsResponse>;
+    },
+    staleTime: 30000,
+  });
 
