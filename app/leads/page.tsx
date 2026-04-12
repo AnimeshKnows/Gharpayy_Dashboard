@@ -1597,7 +1597,7 @@ const Leads = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 mb-10 md:mb-8">
+        <div className="flex items-center justify-between mt-4 mb-20 pb-2 md:mb-16 md:pb-0">
           <p className="text-2xs text-muted-foreground">
             Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalLeads)} of {totalLeads}
           </p>
