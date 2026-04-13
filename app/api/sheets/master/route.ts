@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import type { PGEntry } from '@/data/pgMasterData';
 
 const SHEET_ID = '1G3l4qX7lWedE4W_3_BoIqreRNP-mA1qH8eIxR0DBk5A';
-const MASTER_GID = '1461573087';
 const API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
 
 function parsePriceString(raw: string, fallbackText?: string) {
@@ -29,8 +28,26 @@ function parsePriceString(raw: string, fallbackText?: string) {
   return { triple, double, single, min: prices.length > 0 ? Math.min(...prices) : null };
 }
 
+// Strips surrounding quotes but preserves internal newlines
+function cleanMsg(s: string | undefined): string {
+  return (s || '').replace(/^"+|"+$/g, '');
+}
+
+// Strips quotes AND trims — use for everything except locationMsg/waTemplate
 function clean(s: string | undefined): string {
   return (s || '').replace(/^"+|"+$/g, '').trim();
+}
+
+// Injects newlines based on emoji landmarks in the location message
+function formatLocationMsg(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/\s*(📍)/g, '$1')
+    .replace(/\s*(🚀)/g, '\n$1')
+    .replace(/\s*(🎯)/g, '\n\n$1')
+    .replace(/\s*(Secure your)/gi, '\n\n$1')
+    .replace(/\s*(_[Ss]ecure)/g, '\n\n$1')
+    .trim();
 }
 
 function normalizeArea(a: string): string {
@@ -85,36 +102,36 @@ export async function GET() {
   const inactiveNames: string[] = [];
   let idx = 0;
 
-  // Skip header rows (first 2)
   for (let i = 2; i < rows.length; i++) {
     const row = rows[i];
     const cells = row?.values ?? [];
 
-    const getVal = (colIdx: number): string => clean(cells[colIdx]?.formattedValue);
+    // Use effectiveValue.stringValue to preserve newlines
+    const getVal = (colIdx: number): string => clean(cells[colIdx]?.effectiveValue?.stringValue);
+    const getRaw = (colIdx: number): string => cleanMsg(cells[colIdx]?.effectiveValue?.stringValue);
     const getColor = (colIdx: number) => cells[colIdx]?.effectiveFormat?.textFormat?.foregroundColor;
 
-    const name = getVal(1); // Col B — NAMES
+    const name = getVal(1); // Col B
     if (!name) continue;
 
-    // Filter out inactive PGs — red text on the name cell
     if (isRedCell(getColor(1))) {
-      inactiveNames.push(name.toLowerCase()); // collect it
+      inactiveNames.push(name.toLowerCase());
       continue;
     }
 
-    const rawArea = getVal(2);  // Col C — AREA
-    const area = normalizeArea(rawArea);
-    const locality = getVal(3);  // Col D — LOCALITY
-    const usp = getVal(6);  // Col G — USP
-    const vacant = getVal(8);  // Col I — V (vacant count)
-    const priceLows = getVal(9);  // Col J — LOWS (T 11 / D 15 / S 22)
-    const waMsg = getVal(11); // Col L — PRICE (WA blob fallback)
-    const food = getVal(14); // Col O — FOOD
-    const mapsLink = getVal(17); // Col R — exact location ✅
-    const locationMsg = getVal(13);
-    const exactName = getVal(16); // Col Q — exact name
-    const managerContact = getVal(20); // Col T — manager number
-    const managerName = getVal(21); // Col U — mng name
+    const rawArea     = getVal(2);   // Col C — AREA
+    const area        = normalizeArea(rawArea);
+    const locality    = getVal(3);   // Col D — LOCALITY
+    const usp         = getVal(6);   // Col G — USP
+    const vacant      = getVal(8);   // Col I — VACANT
+    const priceLows   = getVal(9);   // Col J — LOWS
+    const waMsg       = getRaw(11);  // Col L — WA message (preserve newlines)
+    const food        = getVal(14);  // Col O — FOOD
+    const mapsLink    = getVal(17);  // Col R — MAPS LINK
+    const locationMsg = formatLocationMsg(getRaw(13)); // Col N — LOCATION MSG
+    const exactName   = getVal(16);  // Col Q — EXACT NAME
+    const managerContact = getVal(20); // Col T
+    const managerName    = getVal(21); // Col U
 
     const genderRaw = name + ' ' + locality;
     let gender = 'Co-live';
@@ -158,7 +175,7 @@ export async function GET() {
       source: 'LIVE-SHEET',
       priority: '1',
       availability: vacant ? parseInt(vacant) : null,
-      locationMsg: locationMsg,
+      locationMsg,
       waTemplate: waMsg,
       subArea: rawArea || area,
       exactName,
@@ -168,6 +185,6 @@ export async function GET() {
 
   return NextResponse.json({
     active: results,
-    inactiveNames: inactiveNames,
+    inactiveNames,
   });
 }

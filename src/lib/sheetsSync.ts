@@ -2,7 +2,7 @@ import type { PGEntry } from '../data/pgMasterData';
 
 /**
  * MY PG IQ tab (gid=254520272) — the authoritative source with ALL fields.
- * 
+ *
  * VERIFIED COLUMN MAP (0-indexed):
  * Col 0  → Gharpayy Name of PG
  * Col 1  → Area
@@ -44,49 +44,6 @@ import type { PGEntry } from '../data/pgMasterData';
  * Col 37 → Drive Folder (Videos)
  * Col 38 → Timestamp
  */
-// removed duplicate constant
-
-function parseCSVRow(row: string): string[] {
-  const result: string[] = [];
-  let cur = '';
-  let inQuotes = false;
-  for (let i = 0; i < row.length; i++) {
-    const ch = row[i];
-    if (ch === '"') {
-      if (inQuotes && row[i + 1] === '"') { cur += '"'; i++; }
-      else inQuotes = !inQuotes;
-    } else if (ch === ',' && !inQuotes) {
-      result.push(cur.trim());
-      cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  result.push(cur.trim());
-  return result;
-}
-
-function parseCSV(text: string): string[][] {
-  const rows: string[][] = [];
-  let cur = '';
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === '"') {
-      if (inQuotes && text[i + 1] === '"') { cur += '"'; i++; }
-      else inQuotes = !inQuotes;
-      cur += ch;
-    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
-      if (ch === '\r' && text[i + 1] === '\n') i++;
-      if (cur.trim()) rows.push(parseCSVRow(cur));
-      cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  if (cur.trim()) rows.push(parseCSVRow(cur));
-  return rows;
-}
 
 function parsePriceString(raw: string, fallbackText?: string) {
   const cleanNum = (s: string) => parseFloat(s.replace(/,/g, ''));
@@ -120,18 +77,32 @@ function splitList(s: string): string[] {
   return s.split(',').map(v => v.trim()).filter(Boolean);
 }
 
+// Strips quotes AND trims — for all regular fields
 function clean(s: string | undefined): string {
   return (s || '').replace(/^"+|"+$/g, '').trim();
 }
 
-const IQ_SHEET_URL = '/api/sheets/iq';
-const FIND_PG_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1G3l4qX7lWedE4W_3_BoIqreRNP-mA1qH8eIxR0DBk5A/export?format=csv&gid=1461573087';
+// Strips quotes but preserves internal newlines — for locationMsg and waTemplate
+function cleanMsg(s: string | undefined): string {
+  return (s || '').replace(/^"+|"+$/g, '');
+}
+
+// Injects newlines based on emoji landmarks in the location message
+function formatLocationMsg(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/\s*(📍)/g, '$1')
+    .replace(/\s*(🚀)/g, '\n$1')
+    .replace(/\s*(🎯)/g, '\n\n$1')
+    .replace(/\s*(Secure your)/gi, '\n\n$1')
+    .replace(/\s*(_[Ss]ecure)/g, '\n\n$1')
+    .trim();
+}
 
 export function normalizeArea(a: string): string {
   if (!a) return 'Unknown';
   const cleaned = a.trim().toLowerCase();
 
-  // Keyword extraction to snap messy names to canonical top-level areas
   if (cleaned.includes('bellandur')) return 'Bellandur';
   if (cleaned.includes('koramangala') || cleaned.includes('kormangala')) return 'Koramangala';
   if (cleaned.includes('hsr') || cleaned.includes('h s r')) return 'HSR Layout';
@@ -155,7 +126,6 @@ export function normalizeArea(a: string): string {
   if (cleaned.includes('cv raman') || cleaned.includes('c.v. raman')) return 'CV Raman Nagar';
   if (cleaned.includes('bangalore') || cleaned.includes('bengaluru')) return 'Bengaluru';
 
-  // Fallback: title case the string
   return cleaned.split(/[\s/|-]+/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
@@ -164,93 +134,91 @@ export function normalizeArea(a: string): string {
 // ─── MAIN EXPORT ─────────────────────────────────────────────────────────────
 
 export async function fetchLivePGData(): Promise<PGEntry[]> {
-  const resIQ = await fetch(IQ_SHEET_URL, { cache: 'no-store' });
-  const textIQ = resIQ.ok ? await resIQ.text() : '';
+  // Now fetches JSON from the Sheets API (not CSV) — newlines preserved
+  const resIQ = await fetch('/api/sheets/iq', { cache: 'no-store' });
+  const jsonIQ = resIQ.ok ? await resIQ.json() : { rows: [] };
+  const dataRows: string[][] = (jsonIQ.rows ?? []).slice(2);
 
   const results: PGEntry[] = [];
   let idx = 0;
 
-  // --- PARSE MY PG IQ TAB ---
-  if (textIQ) {
-    const allRows = parseCSV(textIQ);
-    const dataRows = allRows.slice(2);
-    for (const row of dataRows) {
-      if (!row || row.length < 2) continue;
-      const name = clean(row[0]);
-      if (!name || name.toLowerCase() === 'gharpayy' || name.toLowerCase() === 'iq') continue;
+  for (const row of dataRows) {
+    if (!row || row.length < 2) continue;
+    const name = clean(row[0]);
+    if (!name || name.toLowerCase() === 'gharpayy' || name.toLowerCase() === 'iq') continue;
 
-      const priceLowsRaw = clean(row[32]);
-      const waMsg = clean(row[5]);
-      const locationMsg = clean(row[4]);
-      const { triple, double, single, min } = parsePriceString(priceLowsRaw, waMsg);
+    const priceLowsRaw = clean(row[32]);
+    const waMsg        = cleanMsg(row[5]);                      // preserve newlines
+    const locationMsg  = formatLocationMsg(cleanMsg(row[4]));   // preserve + format newlines
 
-      const amenitiesRaw = clean(row[24]);
-      const safetyRaw = clean(row[25]);
-      const commonAreasRaw = clean(row[23]);
-      const vibe = clean(row[21]);
-      const food = clean(row[22]);
-      const meals = clean(row[26]);
-      const foodTimings = clean(row[27]);
-      const utilities = clean(row[28]);
-      const houseRules = clean(row[31]);
-      const usp = clean(row[30]);
-      const deposit = clean(row[33]) || '1 Month Rent';
-      const minStay = clean(row[34]) || '3 Months';
-      const walkDist = clean(row[18]);
-      const propertyType = clean(row[15]) as 'Premium' | 'Mid' | 'Budget';
-      const targetAud = clean(row[14]);
-      const mapsLink = clean(row[12]);
-      const managerName = clean(row[6]);
-      const managerContact = clean(row[7]);
-      const rawArea = clean(row[1]);
-      const area = normalizeArea(rawArea);
-      const locality = clean(row[2]);
-      const landmarks = clean(row[3]);
-      const genderRaw = clean(row[13]);
+    const { triple, double, single, min } = parsePriceString(priceLowsRaw, waMsg);
 
-      let gender = 'Co-live';
-      if (genderRaw.toLowerCase().includes('girl')) gender = 'Girls';
-      else if (genderRaw.toLowerCase().includes('boy')) gender = 'Boys';
+    const amenitiesRaw  = clean(row[24]);
+    const safetyRaw     = clean(row[25]);
+    const commonAreasRaw = clean(row[23]);
+    const vibe          = clean(row[21]);
+    const food          = clean(row[22]);
+    const meals         = clean(row[26]);
+    const utilities     = clean(row[28]);
+    const houseRules    = clean(row[31]);
+    const usp           = clean(row[30]);
+    const deposit       = clean(row[33]) || '1 Month Rent';
+    const minStay       = clean(row[34]) || '3 Months';
+    const walkDist      = clean(row[18]);
+    const propertyType  = clean(row[15]) as 'Premium' | 'Mid' | 'Budget';
+    const targetAud     = clean(row[14]);
+    const mapsLink      = clean(row[12]);
+    const managerName   = clean(row[6]);
+    const managerContact = clean(row[7]);
+    const rawArea       = clean(row[1]);
+    const area          = normalizeArea(rawArea);
+    const locality      = clean(row[2]);
+    const landmarks     = clean(row[3]);
+    const genderRaw     = clean(row[13]);
 
-      results.push({
-        id: 2000 + idx,
-        pid: `GP-IQ${String(idx + 1).padStart(3, '0')}`,
-        name,
-        area,
-        locality,
-        landmarks,
-        mapsLink,
-        triplePrice: triple,
-        doublePrice: double,
-        singlePrice: single,
-        minPrice: min ?? 0,
-        gender,
-        propertyType: propertyType || 'Mid',
-        meals: meals || food || '3 Meals / Day',
-        food: food,
-        usp,
-        utilities,
-        deposit,
-        minStay,
-        houseRules,
-        vibe,
-        walkDist,
-        amenities: splitList(amenitiesRaw),
-        safety: splitList(safetyRaw),
-        commonAreas: splitList(commonAreasRaw),
-        managerContact,
-        managerName: managerName || 'Manager',
-        targetAudience: targetAud || 'Both',
-        source: 'LIVE-SHEET',
-        priority: '1',
-        availability: null,
-        locationMsg: locationMsg, 
-        waTemplate: waMsg,  
-        subArea: rawArea || area,
-        exactName: clean(row[11]),
-      });
-      idx++;
-    }
+    let gender = 'Co-live';
+    if (genderRaw.toLowerCase().includes('girl')) gender = 'Girls';
+    else if (genderRaw.toLowerCase().includes('boy')) gender = 'Boys';
+
+    results.push({
+      id: 2000 + idx,
+      pid: `GP-IQ${String(idx + 1).padStart(3, '0')}`,
+      name,
+      area,
+      locality,
+      landmarks,
+      mapsLink,
+      triplePrice: triple,
+      doublePrice: double,
+      singlePrice: single,
+      minPrice: min ?? 0,
+      gender,
+      propertyType: propertyType || 'Mid',
+      meals: meals || food || '3 Meals / Day',
+      food,
+      usp,
+      utilities,
+      deposit,
+      minStay,
+      houseRules,
+      vibe,
+      walkDist,
+      amenities: splitList(amenitiesRaw),
+      safety: splitList(safetyRaw),
+      commonAreas: splitList(commonAreasRaw),
+      managerContact,
+      managerName: managerName || 'Manager',
+      targetAudience: targetAud || 'Both',
+      source: 'LIVE-SHEET',
+      priority: '1',
+      availability: null,
+      locationMsg,
+      waTemplate: waMsg,
+      subArea: rawArea || area,
+      exactName: clean(row[11]),
+    });
+    idx++;
   }
+
   return results;
 }
