@@ -212,24 +212,13 @@ const PropertyCard = ({
       : { color: T.t1, bg: T.bg3, border: T.line, label: 'coed' };
 
   const copyWA = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const t_was = pg.triplePrice ? Math.round((pg.triplePrice + 2000) / 1000) : 15;
-    const t_now = pg.triplePrice ? Math.round(pg.triplePrice / 1000) : 13;
-    const d_was = pg.doublePrice ? Math.round((pg.doublePrice + 2000) / 1000) : 18;
-    const d_now = pg.doublePrice ? Math.round(pg.doublePrice / 1000) : 16;
-    const s_was = pg.singlePrice ? Math.round((pg.singlePrice + 2000) / 1000) : 27;
-    const s_now = pg.singlePrice ? Math.round(pg.singlePrice / 1000) : 23;
-    const msg =
-      `⚡️ Welcome to Gharpayy ${pg.name.toUpperCase()} - ${(pg.gender || 'COED').toUpperCase()}! ⚡️ ❤️ We're thrilled you loved our rooms.🚀 *Exclusive Offer Alert:* **2K OFF MONTHLY** \n\n` +
-      `🧡Triple Sharing. - ~Was ${t_was}K~, **now only ${t_now}k!*\n` +
-      `💛Dual Sharing. - ~Originally ${d_was}K~, **now just ${d_now}K!*\n` +
-      `❤️Private rooms - ~Formerly ${s_was}k~, **now specially priced at ${s_now}K!*\n\n` +
-      `💥 Act Fast: Lock in your reservation NOW and save 2000+ RS every month on a 12-month stay! *Offer expires in 4 hours. *Prebook* now for just 20k!*🔥   enjoy complimentary good food.`;
-    navigator.clipboard.writeText(msg);
-    setCopiedWA(true);
-    setTimeout(() => setCopiedWA(false), 2000);
-    toast.success('Exclusive Offer Message Copied! ⚡️');
-  };
+  e.stopPropagation();
+  const msg = pg.waTemplate || `📍 ${pg.name.toUpperCase()}`;
+  navigator.clipboard.writeText(msg);
+  setCopiedWA(true);
+  setTimeout(() => setCopiedWA(false), 2000);
+  toast.success('Exclusive Offer Message Copied! ⚡️');
+};
 
   const copyMap = (e: React.MouseEvent) => {
     e.stopPropagation();
