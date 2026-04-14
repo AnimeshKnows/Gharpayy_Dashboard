@@ -27,8 +27,6 @@ MONGODB_URI=mongodb://localhost:27017/dashboard
 JWT_SECRET=replace_with_a_strong_secret
 ```
 
-If you prefer, you can copy [.env.example](.env.example) and replace the placeholders with your production values.
-
 3. Start development server:
 ```bash
 npm run dev
