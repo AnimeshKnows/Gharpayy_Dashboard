@@ -133,9 +133,10 @@ export function normalizeArea(a: string): string {
 
 // ─── MAIN EXPORT ─────────────────────────────────────────────────────────────
 
-export async function fetchLivePGData(): Promise<PGEntry[]> {
+export async function fetchLivePGData(baseUrl?: string): Promise<PGEntry[]> {
   // Now fetches JSON from the Sheets API (not CSV) — newlines preserved
-  const resIQ = await fetch('/api/sheets/iq', { cache: 'no-store' });
+  const url = baseUrl ? `${baseUrl}/api/sheets/iq` : '/api/sheets/iq';
+  const resIQ = await fetch(url, { cache: 'no-store' });
   const jsonIQ = resIQ.ok ? await resIQ.json() : { rows: [] };
   const dataRows: string[][] = (jsonIQ.rows ?? []).slice(2);
 
