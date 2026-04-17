@@ -1325,7 +1325,7 @@ const Leads = () => {
                       {bestPGs.length === 0 ? (
                         <div style={{ fontSize: 9, color: "var(--lc-dim)" }}>No matches</div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
                           {bestPGs.slice(0, 3).map((pg: any) => (
                             <div key={pg.id} onClick={(e) => e.stopPropagation()} className="min-w-0">
                               <PGCard pg={pg} viewMode="grid" />
@@ -1691,7 +1691,7 @@ const Leads = () => {
                             No matches found
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
                             {[...bestPGs, ...morePGs].slice(0, 6).map((pg: any) => (
                               <div key={pg.id} onClick={(e) => e.stopPropagation()} className="min-w-0">
                                 <PGCard pg={pg} viewMode="grid" />

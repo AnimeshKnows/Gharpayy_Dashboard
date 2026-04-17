@@ -69,8 +69,8 @@ const PGCard: React.FC<PGCardProps> = ({ pg, viewMode = "grid", isAdmin = false,
     pg.gender?.toLowerCase().includes("girl") || pg.gender?.toLowerCase().includes("female")
       ? { color: "#EC4899", bg: "rgba(236,72,153,0.08)", border: "rgba(236,72,153,0.22)", label: "Girls" }
       : pg.gender?.toLowerCase().includes("boy") || pg.gender?.toLowerCase().includes("male")
-      ? { color: T.blue, bg: T.blueD, border: T.blueB, label: "Boys" }
-      : { color: T.t1, bg: T.bg3, border: T.line, label: "coed" };
+        ? { color: T.blue, bg: T.blueD, border: T.blueB, label: "Boys" }
+        : { color: T.t1, bg: T.bg3, border: T.line, label: "coed" };
 
   const copyWA = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -118,10 +118,27 @@ const PGCard: React.FC<PGCardProps> = ({ pg, viewMode = "grid", isAdmin = false,
     >
       {/* Header */}
       <div style={{ padding: "14px 16px", flex: isList ? 1 : "none", minWidth: 0 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 10,
+            minWidth: 0,
+            flexWrap: "wrap",
+          }}
+        >
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* Primary PG name */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                flexWrap: "wrap",
+                minWidth: 0,
+              }}
+            >
               <h3
                 style={{
                   fontFamily: T.sans,
@@ -131,11 +148,16 @@ const PGCard: React.FC<PGCardProps> = ({ pg, viewMode = "grid", isAdmin = false,
                   margin: 0,
                   letterSpacing: "-0.01em",
                   minWidth: 0,
-                  wordBreak: "break-word",
+                  flex: "1 1 auto",
+                  whiteSpace: "normal",
+                  wordBreak: "normal",
+                  overflowWrap: "normal",
+                  lineHeight: 1.15,
                 }}
               >
                 {pg.name.toUpperCase()}
               </h3>
+
               <span
                 style={{
                   fontFamily: T.mono,
@@ -146,15 +168,25 @@ const PGCard: React.FC<PGCardProps> = ({ pg, viewMode = "grid", isAdmin = false,
                   padding: "2px 4px",
                   borderRadius: 4,
                   flexShrink: 0,
+                  whiteSpace: "nowrap",
                 }}
               >
                 {pg.pid}
               </span>
             </div>
-
             {/* Exact Name line as requested */}
             {pg.exactName && (
-              <div style={{ marginTop: 2, fontFamily: T.mono, fontSize: 9, color: T.t1 }}>
+              <div
+                style={{
+                  marginTop: 2,
+                  fontFamily: T.mono,
+                  fontSize: 9,
+                  color: T.t1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 <span style={{ fontWeight: 700 }}>Name: </span>
                 <span>{pg.exactName}</span>
               </div>
@@ -162,7 +194,18 @@ const PGCard: React.FC<PGCardProps> = ({ pg, viewMode = "grid", isAdmin = false,
 
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, minWidth: 0 }}>
               <MapPin size={10} style={{ color: T.t2, flexShrink: 0 }} />
-              <span style={{ fontFamily: T.mono, fontSize: 9, color: T.t2, fontWeight: 600 }}>{pg.area}</span>
+              <span
+                style={{
+                  fontFamily: T.mono,
+                  fontSize: 9,
+                  color: T.t2,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+              >
+                {pg.area}
+              </span>
               {pg.landmarks && (
                 <span
                   style={{
@@ -183,7 +226,14 @@ const PGCard: React.FC<PGCardProps> = ({ pg, viewMode = "grid", isAdmin = false,
           </div>
 
           {!isList && (
-            <div style={{ textAlign: "right", flexShrink: 0 }}>
+            <div
+              style={{
+                textAlign: "right",
+                flexShrink: 0,
+                minWidth: "fit-content",
+                marginLeft: "auto",
+              }}
+            >
               <div style={{ color: T.gold, fontWeight: 900, fontSize: 13, textTransform: "uppercase" }}>
                 {formatPrice(minPrice)}
               </div>
