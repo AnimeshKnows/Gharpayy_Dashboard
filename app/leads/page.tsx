@@ -1307,33 +1307,7 @@ const Leads = () => {
                       )}
                     </div>
 
-                    {/* 🔥 Best PGs (Collapsed) */}
-                    <div style={{ marginTop: 8 }}>
-                      <div
-                        style={{
-                          fontSize: 9,
-                          color: "var(--lc-dim)",
-                          marginBottom: 6,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.04em",
-                        }}
-                      >
-                        Best PGs
-                      </div>
 
-                      {bestPGs.length === 0 ? (
-                        <div style={{ fontSize: 9, color: "var(--lc-dim)" }}>No matches</div>
-                      ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
-                          {bestPGs.slice(0, 3).map((pg: any) => (
-                            <div key={pg.id} onClick={(e) => e.stopPropagation()} className="min-w-0">
-                              <PGCard pg={pg} viewMode="grid" />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
                   </div>
 
                   {/* Quick actions on collapsed */}
@@ -1518,6 +1492,44 @@ const Leads = () => {
                     </div>
                   </div>
                 </div>
+                {/* 🔥 Best PGs (Collapsed) */}
+                <div
+                  style={{ marginTop: 8, width: "100%", minWidth: 0 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: "var(--lc-dim)",
+                      marginBottom: 6,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    Best PGs
+                  </div>
+
+                  {bestPGs.length === 0 ? (
+                    <div style={{ fontSize: 9, color: "var(--lc-dim)" }}>No matches</div>
+                  ) : (
+                    <div
+                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start w-full"
+                      style={{ width: "100%", minWidth: 0 }}
+                    >
+                      {bestPGs.slice(0, 3).map((pg: any) => (
+                        <div
+                          key={pg.id}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full min-w-0"
+                          style={{ width: "100%", minWidth: 0 }}
+                        >
+                          <PGCard pg={pg} viewMode="grid" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           }
@@ -1670,36 +1682,6 @@ const Leads = () => {
                           </>
                         )}
                       </div>
-
-                      {/* ✅ FIX 4+5+6: Fixed expanded PG block — uses [...bestPGs, ...morePGs].length check */}
-                      <div style={{ marginTop: 8 }}>
-                        <div
-                          style={{
-                            fontSize: 10,
-                            color: "var(--lc-mid)",
-                            marginBottom: 6,
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.04em",
-                          }}
-                        >
-                          Best PG Matches
-                        </div>
-
-                        {[...bestPGs, ...morePGs].length === 0 ? (
-                          <div style={{ fontSize: 10, color: 'var(--lc-dim)' }}>
-                            No matches found
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
-                            {[...bestPGs, ...morePGs].slice(0, 6).map((pg: any) => (
-                              <div key={pg.id} onClick={(e) => e.stopPropagation()} className="min-w-0">
-                                <PGCard pg={pg} viewMode="grid" />
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
 
@@ -1773,6 +1755,44 @@ const Leads = () => {
                       </DropdownMenu>
                     </div>
                   </div>
+                </div>
+                {/* FIX 456: Fixed expanded PG block uses [...bestPGs, ...morePGs].length check */}
+                <div
+                  style={{ marginTop: 8, width: "100%", minWidth: 0 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: D.mid,
+                      marginBottom: 6,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    Best PG Matches
+                  </div>
+
+                  {[...bestPGs, ...morePGs].length === 0 ? (
+                    <div style={{ fontSize: 10, color: D.dim }}>No matches found</div>
+                  ) : (
+                    <div
+                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start w-full"
+                      style={{ width: "100%", minWidth: 0 }}
+                    >
+                      {[...bestPGs, ...morePGs].slice(0, 6).map((pg: any) => (
+                        <div
+                          key={pg.id}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full min-w-0"
+                          style={{ width: "100%", minWidth: 0 }}
+                        >
+                          <PGCard pg={pg} viewMode="grid" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* ─── Pipeline Stages Stepper ─── */}
