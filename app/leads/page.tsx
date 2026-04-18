@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import AppLayout from '@/components/AppLayout';
 import EditLeadDialog from '@/components/EditLeadDialog';
@@ -31,6 +31,17 @@ import { parseMoveInV2, parseBudgetV2 } from '@/lib/leadParserV2';
 import { LEADS_UPDATED_AT_KEY, getLeadsUpdatedStamp } from '@/lib/leadSync';
 import { ZonePill, BudgetChips, GeoIntelPanel } from '@/components/LeadUIAtoms';
 import PGCard from "@/components/PGCard";
+import LogActivitySheet from '@/components/LogActivitySheet';
+import LeadsProgressPanelButton from '@/components/LeadsProgressPanelButton';
+import MemberDailyReminderPopup from '@/components/MemberDailyReminderPopup';
+import {
+  actColor,
+  actIcon,
+  formatActivityDate,
+  getAutoTags,
+  getBand,
+  getMandatoryQueue,
+} from '@/lib/leadsActivityAndPriority';
 
 // ─── helpers to map DB lead → card display ────────────────────────
 function mapLeadMeta(lead: LeadWithRelations) {
@@ -86,6 +97,17 @@ const statusBadgeConfig: Record<string, { bg: string; color: string; border: str
   lost: { bg: 'rgba(100,116,139,0.08)', color: '#64748b', border: 'rgba(100,116,139,0.25)' },
 };
 
+// ─── Band config ────────────────────────
+const BAND_CONFIG: Record<string, { label: string; subtitle: string; color: string }> = {
+  mandatory: { label: 'MANDATORY - ACTION NOW', subtitle: 'Immediate actions required right now.', color: '#7f1d1d' },
+  fire: { label: 'FIRE - MOVE-IN <= 7 DAYS', subtitle: 'Close or lose this week.', color: '#991b1b' },
+  stuck: { label: 'STUCK - STAGE EXPIRED', subtitle: 'Days exceeded. Unblock today.', color: '#92400e' },
+  active: { label: 'IN PROGRESS', subtitle: 'Moving. Sorted by move-in date.', color: '#065f46' },
+  future: { label: 'FUTURE - MOVE-IN 45+ DAYS', subtitle: 'Qualified. Set a trigger.', color: '#1e3a8a' },
+  dormant: { label: 'DORMANT - 30+ DAYS SILENT', subtitle: 'Final attempt then mark lost.', color: '#1f2937' },
+  closed: { label: 'BOOKED / ONBOARDING', subtitle: 'Handed off to next team.', color: '#064e3b' },
+};
+
 // ─── Compute a simple progress from lead fields ────────────────────────
 function computeLeadProgress(lead: LeadWithRelations) {
   const fields = [lead.name, lead.phone, lead.email, lead.preferredLocation, lead.budget, lead.moveInDate, lead.profession, lead.roomType, lead.needPreference, lead.specialRequests];
@@ -116,6 +138,7 @@ const Leads = () => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterDuplicate, setFilterDuplicate] = useState<string>('all');
   const [filterZone, setFilterZone] = useState<string>('all');
+  const [filterMember, setFilterMember] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
@@ -155,6 +178,17 @@ const Leads = () => {
     remarks: string;
   }>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [activityLeadId, setActivityLeadId] = useState<string | null>(null);
+  const [expandedActivityIds, setExpandedActivityIds] = useState<Set<string>>(new Set());
+  const [bandOpen, setBandOpen] = useState<Record<string, boolean>>({
+    mandatory: true,
+    fire: true,
+    stuck: true,
+    active: true,
+    future: true,
+    dormant: true,
+    closed: true,
+  });
   const queryClient = useQueryClient();
 
   const hasValidCustomRange = (() => {
@@ -254,8 +288,14 @@ const Leads = () => {
     status: filterStatus,
     source: filterSource,
     zone: filterZone,
+    assignedMemberId: filterMember,
     duplicate: filterDuplicate as LeadsQueryFilters['duplicate'],
-    sort: filterDateMode === 'oldest' ? 'oldest' : filterDateMode === 'alphabetical' ? 'alphabetical' : 'newest',
+    sort:
+      filterDateMode === 'oldest'
+        ? 'oldest'
+        : filterDateMode === 'alphabetical'
+          ? 'alphabetical'
+          : 'newest',
     period: periodForDateFilter,
     from: fromForDateFilter,
     to: toForDateFilter,
@@ -263,7 +303,7 @@ const Leads = () => {
 
   useEffect(() => {
     setPage(0);
-  }, [debouncedSearchQuery, filterSource, filterStatus, filterDuplicate, filterZone, filterDateMode, filterDate, filterMonth, fromDate, toDate, hasValidCustomRange]);
+  }, [debouncedSearchQuery, filterSource, filterStatus, filterDuplicate, filterZone, filterMember, filterDateMode, filterDate, filterMonth, fromDate, toDate, hasValidCustomRange]);
 
   const PAGE_SIZE = 50;
   const { data: paginatedData, isLoading } = useLeadsPaginated(page, PAGE_SIZE, serverFilters);
@@ -292,6 +332,7 @@ const Leads = () => {
   const { user } = useAuth();
   const canManageLeadAssignments = ['super_admin', 'manager', 'admin', 'member'].includes(user?.role || '');
   const canAddLead = ['super_admin', 'manager', 'admin', 'member'].includes(user?.role || '');
+  const canUseMemberFilter = ['super_admin', 'manager', 'admin'].includes(user?.role || '');
   const isScopedZoneRole = ['admin', 'member'].includes(user?.role || '');
   const isMemberRole = user?.role === 'member';
   const isAdminRole = user?.role === 'admin';
@@ -302,6 +343,12 @@ const Leads = () => {
       setFilterZone('all');
     }
   }, [user?.role, filterZone]);
+
+  useEffect(() => {
+    if (!canUseMemberFilter && filterMember !== 'all') {
+      setFilterMember('all');
+    }
+  }, [canUseMemberFilter, filterMember]);
 
   useEffect(() => {
     if (!isAssignedByMeReadOnly) return;
@@ -354,6 +401,68 @@ const Leads = () => {
 
       return true;
     });
+
+  const mandatoryQueue = useMemo(
+    () => getMandatoryQueue(filtered, String(user?.id || '')),
+    [filtered, user?.id]
+  );
+
+  const mandatoryLeadIds = useMemo(
+    () => new Set(mandatoryQueue.map((item) => item.leadId)),
+    [mandatoryQueue]
+  );
+
+  const groupedBands = useMemo(() => {
+    const groups: Record<string, LeadWithRelations[]> = {
+      mandatory: [],
+      fire: [],
+      stuck: [],
+      active: [],
+      future: [],
+      dormant: [],
+      closed: [],
+    };
+
+    groups.mandatory = mandatoryQueue
+      .map((item) => filtered.find((lead) => lead.id === item.leadId))
+      .filter((lead): lead is LeadWithRelations => Boolean(lead));
+
+    filtered.forEach((lead) => {
+      if (mandatoryLeadIds.has(lead.id)) return;
+      const band = getBand(lead) || 'active';
+      if (!groups[band]) groups[band] = [];
+      groups[band].push(lead);
+    });
+
+    const sortByMoveIn = (a: LeadWithRelations, b: LeadWithRelations) => {
+      const da = a.moveInDate ? new Date(a.moveInDate).getTime() : Number.POSITIVE_INFINITY;
+      const db = b.moveInDate ? new Date(b.moveInDate).getTime() : Number.POSITIVE_INFINITY;
+      return da - db;
+    };
+
+    Object.keys(groups).forEach((band) => {
+      if (band === 'mandatory') return;
+      groups[band].sort(sortByMoveIn);
+    });
+    return groups;
+  }, [filtered, mandatoryLeadIds, mandatoryQueue]);
+
+  const orderedBandKeys = ['mandatory', 'fire', 'stuck', 'active', 'future', 'dormant', 'closed'];
+
+  const displayRows = useMemo(() => {
+    const rows: Array<{ kind: 'header'; band: string } | { kind: 'lead'; band: string; lead: LeadWithRelations }> = [];
+
+    orderedBandKeys.forEach((band) => {
+      const leadsForBand = groupedBands[band] || [];
+      if (leadsForBand.length === 0) return;
+      rows.push({ kind: 'header', band });
+      if (bandOpen[band] !== false) {
+        leadsForBand.forEach((lead) => rows.push({ kind: 'lead', band, lead }));
+      }
+    });
+
+    return rows;
+  }, [groupedBands, bandOpen]);
 
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
@@ -710,15 +819,7 @@ const Leads = () => {
       subtitle={subtitleCount}
       showQuickAddLead={false}
       actions={(
-        <Button
-          size="sm"
-          className="gap-1.5 text-xs"
-          disabled={!canAddLead}
-          title={!canAddLead ? 'Only Super Admins, managers, admins, and members can add leads' : 'Open Lead Intake in a new tab'}
-          onClick={openLeadIntakeInNewTab}
-        >
-          <Plus size={13} /> Add Lead
-        </Button>
+        <LeadsProgressPanelButton />
       )}
     >
       {/* Filters Area */}
@@ -726,7 +827,7 @@ const Leads = () => {
         <div className="flex items-center justify-between">
           <Button variant="outline" size="sm" onClick={() => setShowFiltersMobile(!showFiltersMobile)} className="ml-1.5 md:ml-0 gap-1.5 h-7 text-[11px] rounded-xl md:hidden">
             <Filter size={14} /> Filters
-            {(!showFiltersMobile && (filterSource !== 'all' || filterStatus !== 'all' || filterDuplicate !== 'all' || filterZone !== 'all' || filterDateMode !== 'newest' || fromDate || toDate)) && <div className="w-1.5 h-1.5 rounded-full bg-accent" />}
+            {(!showFiltersMobile && (filterSource !== 'all' || filterStatus !== 'all' || filterDuplicate !== 'all' || filterZone !== 'all' || (canUseMemberFilter && filterMember !== 'all') || filterDateMode !== 'newest' || fromDate || toDate)) && <div className="w-1.5 h-1.5 rounded-full bg-accent" />}
           </Button>
 
           {/* Desktop Filters */}
@@ -766,27 +867,41 @@ const Leads = () => {
                 <SelectItem value="duplicate">Duplicates Only</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filterZone} onValueChange={setFilterZone}>
-              <SelectTrigger className="shrink-0 h-7 text-[10px] rounded-xl w-auto min-w-[88px] bg-card border-border px-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent side="bottom" align="start">
-                {isScopedZoneRole ? (
-                  <>
-                    {(isMemberRole || isAdminRole) && <SelectItem value="all">All Leads</SelectItem>}
-                    <SelectItem value="my_zones">My Zones</SelectItem>
-                    <SelectItem value="other_zones">Other Zones</SelectItem>
-                    {isMemberRole && <SelectItem value="assigned_by_me">Assigned by Me</SelectItem>}
-                    {isMemberRole && <SelectItem value="assigned_to_me">Assigned to Me</SelectItem>}
-                  </>
-                ) : (
-                  <>
-                    <SelectItem value="all">All Zones</SelectItem>
-                    {officeZones?.map(z => <SelectItem key={z._id} value={z.name}>{z.name}</SelectItem>)}
-                  </>
-                )}
-              </SelectContent>
-            </Select>
+            {!isMemberRole && (
+              <Select value={filterZone} onValueChange={setFilterZone}>
+                <SelectTrigger className="shrink-0 h-7 text-[10px] rounded-xl w-auto min-w-[88px] bg-card border-border px-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent side="bottom" align="start">
+                  {isScopedZoneRole ? (
+                    <>
+                      {isAdminRole && <SelectItem value="all">All Leads</SelectItem>}
+                      <SelectItem value="my_zones">My Zones</SelectItem>
+                      <SelectItem value="other_zones">Other Zones</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="all">All Zones</SelectItem>
+                      {officeZones?.map(z => <SelectItem key={z._id} value={z.name}>{z.name}</SelectItem>)}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            )}
+
+            {canUseMemberFilter && (
+              <Select value={filterMember} onValueChange={setFilterMember}>
+                <SelectTrigger className="shrink-0 h-7 text-[10px] rounded-xl w-auto min-w-[110px] bg-card border-border px-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent side="bottom" align="start">
+                  <SelectItem value="all">All Members</SelectItem>
+                  {(members || []).map((member: any) => (
+                    <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <Select value={filterDateMode} onValueChange={(v) => { setFilterDateMode(v as any); setFilterDate(''); setFilterMonth(''); setFromDate(''); setToDate(''); }}>
               <SelectTrigger className="shrink-0 h-7 text-[10px] rounded-xl w-auto min-w-[96px] bg-card border-border px-2">
@@ -899,25 +1014,36 @@ const Leads = () => {
                 <SelectItem value="duplicate">Duplicates Only</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filterZone} onValueChange={setFilterZone}>
-              <SelectTrigger className="w-full h-8 text-[10px] rounded-lg bg-card border-border"><SelectValue /></SelectTrigger>
-              <SelectContent side="bottom" align="start">
-                {isScopedZoneRole ? (
-                  <>
-                    {(isMemberRole || isAdminRole) && <SelectItem value="all">All Leads</SelectItem>}
-                    <SelectItem value="my_zones">My Zones</SelectItem>
-                    <SelectItem value="other_zones">Other Zones</SelectItem>
-                    {isMemberRole && <SelectItem value="assigned_by_me">Assigned by Me</SelectItem>}
-                    {isMemberRole && <SelectItem value="assigned_to_me">Assigned to Me</SelectItem>}
-                  </>
-                ) : (
-                  <>
-                    <SelectItem value="all">All Zones</SelectItem>
-                    {officeZones?.map(z => <SelectItem key={z._id} value={z.name}>{z.name}</SelectItem>)}
-                  </>
-                )}
-              </SelectContent>
-            </Select>
+            {!isMemberRole && (
+              <Select value={filterZone} onValueChange={setFilterZone}>
+                <SelectTrigger className="w-full h-8 text-[10px] rounded-lg bg-card border-border"><SelectValue /></SelectTrigger>
+                <SelectContent side="bottom" align="start">
+                  {isScopedZoneRole ? (
+                    <>
+                      {isAdminRole && <SelectItem value="all">All Leads</SelectItem>}
+                      <SelectItem value="my_zones">My Zones</SelectItem>
+                      <SelectItem value="other_zones">Other Zones</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="all">All Zones</SelectItem>
+                      {officeZones?.map(z => <SelectItem key={z._id} value={z.name}>{z.name}</SelectItem>)}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            )}
+            {canUseMemberFilter && (
+              <Select value={filterMember} onValueChange={setFilterMember}>
+                <SelectTrigger className="w-full h-8 text-[10px] rounded-lg bg-card border-border"><SelectValue /></SelectTrigger>
+                <SelectContent side="bottom" align="start">
+                  <SelectItem value="all">All Members</SelectItem>
+                  {(members || []).map((member: any) => (
+                    <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Select value={filterDateMode} onValueChange={(v) => { setFilterDateMode(v as any); setFilterDate(''); setFilterMonth(''); setFromDate(''); setToDate(''); }}>
               <SelectTrigger className="w-full h-8 text-[10px] rounded-lg bg-card border-border"><SelectValue /></SelectTrigger>
               <SelectContent side="bottom" align="start">
@@ -976,6 +1102,76 @@ const Leads = () => {
           </motion.div>
         )}
       </div>
+
+      {/* ── Member Zone Tabs ── */}
+      {isMemberRole && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          marginBottom: '14px',
+          padding: '3px',
+          background: 'rgba(0,0,0,0.04)',
+          borderRadius: '12px',
+          border: '1px solid rgba(0,0,0,0.06)',
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}>
+          {[
+            { key: 'all', label: 'All Leads' },
+            { key: 'my_zones', label: 'My Zones' },
+            { key: 'other_zones', label: 'Extra Zones' },
+            { key: 'assigned_by_me', label: 'Assigned by Me' },
+            { key: 'assigned_to_me', label: 'Assigned to Me' },
+          ].map((tab) => {
+            const isActive = filterZone === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setFilterZone(tab.key)}
+                style={{
+                  position: 'relative',
+                  flex: '1 1 0%',
+                  minWidth: 'max-content',
+                  padding: '7px 14px',
+                  borderRadius: '9px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: isActive ? 600 : 500,
+                  letterSpacing: '0.01em',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+                  background: isActive
+                    ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
+                    : 'transparent',
+                  color: isActive ? '#ffffff' : '#64748b',
+                  boxShadow: isActive
+                    ? '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)'
+                    : 'none',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.04)';
+                    (e.currentTarget as HTMLButtonElement).style.color = '#334155';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                    (e.currentTarget as HTMLButtonElement).style.color = '#64748b';
+                  }
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <MemberDailyReminderPopup />
 
       {/* Bulk actions */}
       {selectedIds.size > 0 && canManageLeadAssignments && !isAssignedByMeReadOnly && (
@@ -1042,18 +1238,39 @@ const Leads = () => {
       `}</style>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {filtered.map(lead => {
+        {displayRows.map((row, rowIndex) => {
+          if (row.kind === 'header') {
+            const cfg = BAND_CONFIG[row.band];
+            const count = groupedBands[row.band]?.length || 0;
+            return (
+              <button
+                key={`band-${row.band}`}
+                type="button"
+                onClick={() => setBandOpen((prev) => ({ ...prev, [row.band]: !prev[row.band] }))}
+                className="flex w-full items-center justify-between rounded-xl px-4 py-3 text-left"
+                style={{ background: cfg.color, color: '#fff' }}
+              >
+                <div>
+                  <div className="text-xs font-bold tracking-wide">{cfg.label}</div>
+                  <div className="text-[11px] text-white/80">{cfg.subtitle}</div>
+                </div>
+                <div className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">{count}</div>
+              </button>
+            );
+          }
+
+          const lead = row.lead;
           const m = mapLeadMeta(lead);
           const isExpanded = expandedId === lead.id;
 
-          // ✅ FIX 1: leadsMap removed — use direct find instead
           const leadData =
             leadsWithMatches.find((l: any) => (l._id || l.id) === lead.id) || {};
-
           const bestPGs = (leadData.bestPGs || []) as any[];
           const morePGs = (leadData.morePGs || []) as any[];
 
           const isDuplicateLead = !!lead.isDuplicate;
+          const autoTags = getAutoTags(lead);
+          const hasUrgentTags = autoTags.some((tag) => tag.urgent);
           const sBadge = statusBadgeConfig[lead.status] || statusBadgeConfig.new;
           const stageLabel = pipelineStages.find((s: any) => s.key === lead.status)?.label || lead.status;
           const hue = lead.name ? lead.name.charCodeAt(0) * 7 % 360 : 200;
@@ -1069,7 +1286,6 @@ const Leads = () => {
             hour12: true,
           });
 
-          // Budget display for collapsed card
           const budgetDisplay = m.budgetRanges?.length > 0
             ? m.budgetRanges.map((r: any) => r.display).join(', ')
             : lead.budget || '';
@@ -1078,35 +1294,40 @@ const Leads = () => {
           if (!isExpanded) {
             return (
               <div
-                key={lead.id}
+                key={`${row.band}-${lead.id}-${rowIndex}`}
                 className="lc-card"
                 onClick={() => {
                   if (isAssignedByMeReadOnly) return;
                   setExpandedId(lead.id);
                 }}
                 style={{
-                  background: isDuplicateLead ? "rgba(251,113,133,0.045)" : "var(--lc-bg1)",
-                  border: isDuplicateLead ? "1px solid rgba(251,113,133,0.28)" : "1px solid var(--lc-line)",
+                  background: isDuplicateLead ? 'rgba(251,113,133,0.045)' : 'var(--lc-bg1)',
+                  border: hasUrgentTags
+                    ? '1px solid #7f1d1d'
+                    : isDuplicateLead
+                      ? '1px solid rgba(251,113,133,0.28)'
+                      : '1px solid var(--lc-line)',
+                  borderLeft: hasUrgentTags ? '3px solid #dc2626' : `3px solid ${sBadge.color}`,
                   borderRadius: 12,
-                  padding: "12px 14px",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                  position: "relative",
+                  padding: '12px 14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  position: 'relative',
                 }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLElement).style.borderColor = isDuplicateLead
-                    ? "rgba(251,113,133,0.45)"
-                    : "var(--lc-line2)";
-                  (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
+                    ? 'rgba(251,113,133,0.45)'
+                    : 'var(--lc-line2)';
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.borderColor = isDuplicateLead
-                    ? "rgba(251,113,133,0.28)"
-                    : "var(--lc-line)";
-                  (e.currentTarget as HTMLElement).style.boxShadow = "none";
+                    ? 'rgba(251,113,133,0.28)'
+                    : 'var(--lc-line)';
+                  (e.currentTarget as HTMLElement).style.boxShadow = 'none';
                 }}
               >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   {/* Checkbox */}
                   {canManageLeadAssignments && !isAssignedByMeReadOnly && (
                     <div onClick={(e) => e.stopPropagation()} style={{ paddingTop: 6, flexShrink: 0 }}>
@@ -1118,127 +1339,66 @@ const Leads = () => {
                   <div
                     className="lc-avatar"
                     style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: "50%",
-                      flexShrink: 0,
+                      width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
                       background: `hsl(${hue},30%,92%)`,
                       border: `2px solid hsl(${hue},34%,84%)`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: `hsl(${hue},38%,42%)`,
-                      fontFamily: "var(--lc-sans)",
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 14, fontWeight: 700, color: `hsl(${hue},38%,42%)`,
+                      fontFamily: 'var(--lc-sans)',
                     }}
                   >
-                    {(lead.name || "?")[0]?.toUpperCase()}
+                    {(lead.name || '?')[0]?.toUpperCase()}
                   </div>
 
                   {/* Lead Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {/* Row 1: Name + Badges */}
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px 8px",
-                        flexWrap: "wrap",
-                        paddingBottom: 4,
-                      }}
-                    >
-                      <h3
-                        className="lc-name"
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 700,
-                          color: "var(--lc-hi)",
-                          margin: 0,
-                          fontFamily: "var(--lc-sans)",
-                          paddingRight: 2,
-                        }}
-                      >
-                        {lead.name}
-                      </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px 8px', flexWrap: 'wrap', paddingBottom: 4 }}>
+                      <h3 className="lc-name" style={{ fontSize: 13, fontWeight: 700, color: 'var(--lc-hi)', margin: 0, fontFamily: 'var(--lc-sans)', paddingRight: 2 }}>{lead.name}</h3>
 
                       {m.need && (
                         <>
-                          <span style={{ color: "var(--lc-line2)" }}>|</span>
-                          <span
-                            className="lc-meta"
-                            style={{ fontSize: 10.5, color: "var(--lc-mid)", fontWeight: 600 }}
-                          >
-                            {m.need}
-                          </span>
+                          <span style={{ color: 'var(--lc-line2)' }}>|</span>
+                          <span className="lc-meta" style={{ fontSize: 10.5, color: 'var(--lc-mid)', fontWeight: 600 }}>{m.need}</span>
                         </>
                       )}
 
                       {m.quality && (
                         <>
-                          <span style={{ color: "var(--lc-line2)" }}>|</span>
-                          <span
-                            className="lc-chip"
-                            style={{
-                              padding: "1px 8px",
-                              borderRadius: 10,
-                              fontSize: 9.5,
-                              fontWeight: 600,
-                              background: qualityBadge.bg,
-                              color: qualityBadge.color,
-                            }}
-                          >
+                          <span style={{ color: 'var(--lc-line2)' }}>|</span>
+                          <span className="lc-chip" style={{
+                            padding: '1px 8px', borderRadius: 10, fontSize: 9.5, fontWeight: 600,
+                            background: qualityBadge.bg, color: qualityBadge.color,
+                          }}>
                             {m.quality.charAt(0).toUpperCase() + m.quality.slice(1)}
                           </span>
                         </>
                       )}
 
-                      {m.zones.length > 0 && <span style={{ color: "var(--lc-line2)" }}>|</span>}
-                      {m.zones.map((z: string) => (
-                        <ZonePill key={z} zoneName={z} xs />
-                      ))}
+                      {m.zones.length > 0 && <span style={{ color: 'var(--lc-line2)' }}>|</span>}
+                      {m.zones.map((z: string) => <ZonePill key={z} zoneName={z} xs />)}
 
-                      <span style={{ color: "var(--lc-line2)" }}>|</span>
-                      <span
-                        className="lc-stage"
-                        style={{
-                          padding: "1px 8px",
-                          borderRadius: 10,
-                          fontSize: 9.5,
-                          fontWeight: 600,
-                          background: sBadge.bg,
-                          color: sBadge.color,
-                          border: `1px solid ${sBadge.border}`,
-                        }}
-                      >
+                      <span style={{ color: 'var(--lc-line2)' }}>|</span>
+                      <span className="lc-stage" style={{
+                        padding: '1px 8px', borderRadius: 10, fontSize: 9.5, fontWeight: 600,
+                        background: sBadge.bg, color: sBadge.color, border: `1px solid ${sBadge.border}`,
+                      }}>
                         {stageLabel}
                       </span>
                     </div>
 
                     {/* Row 2: Phone + Budget + Extended Info */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px 8px", flexWrap: "wrap" }}>
-                      <span
-                        className="lc-phone"
-                        style={{ fontSize: 11, color: "var(--lc-mid)", fontFamily: "var(--lc-mono)", fontWeight: 600 }}
-                      >
-                        {lead.phone}
-                      </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px 8px', flexWrap: 'wrap' }}>
+                      <span className="lc-phone" style={{ fontSize: 11, color: 'var(--lc-mid)', fontFamily: 'var(--lc-mono)', fontWeight: 600 }}>{lead.phone}</span>
 
                       {budgetDisplay && (
                         <>
-                          <span style={{ color: "var(--lc-line2)" }}>|</span>
-                          <span
-                            className="lc-chip"
-                            style={{
-                              fontSize: 10,
-                              padding: "1px 7px",
-                              background: "var(--lc-bg2)",
-                              borderRadius: 4,
-                              color: "var(--lc-mid)",
-                              fontFamily: "var(--lc-mono)",
-                              fontWeight: 500,
-                            }}
-                          >
+                          <span style={{ color: 'var(--lc-line2)' }}>|</span>
+                          <span className="lc-chip" style={{
+                            fontSize: 10, padding: '1px 7px',
+                            background: 'var(--lc-bg2)', borderRadius: 4, color: 'var(--lc-mid)',
+                            fontFamily: 'var(--lc-mono)', fontWeight: 500,
+                          }}>
                             {budgetDisplay}
                           </span>
                         </>
@@ -1246,27 +1406,17 @@ const Leads = () => {
 
                       {m.inBLR !== null && (
                         <>
-                          <span style={{ color: "var(--lc-line2)" }}>|</span>
-                          <span
-                            className="lc-meta"
-                            style={{
-                              fontSize: 10,
-                              color: m.inBLR ? "var(--lc-mid)" : "var(--lc-dim)",
-                              fontWeight: 500,
-                            }}
-                          >
-                            {m.inBLR ? "IN BLR" : "NOT IN BLR"}
+                          <span style={{ color: 'var(--lc-line2)' }}>|</span>
+                          <span className="lc-meta" style={{ fontSize: 10, color: m.inBLR ? 'var(--lc-mid)' : 'var(--lc-dim)', fontWeight: 500 }}>
+                            {m.inBLR ? 'IN BLR' : 'NOT IN BLR'}
                           </span>
                         </>
                       )}
 
                       {lead.moveInDate && (
                         <>
-                          <span style={{ color: "var(--lc-line2)" }}>|</span>
-                          <span
-                            className="lc-meta"
-                            style={{ fontSize: 10, color: "var(--lc-mid)", fontWeight: 500 }}
-                          >
+                          <span style={{ color: 'var(--lc-line2)' }}>|</span>
+                          <span className="lc-meta" style={{ fontSize: 10, color: 'var(--lc-mid)', fontWeight: 500 }}>
                             {lead.moveInDate}
                           </span>
                         </>
@@ -1274,104 +1424,62 @@ const Leads = () => {
 
                       {lead.preferredLocation && (
                         <>
-                          <span style={{ color: "var(--lc-line2)" }}>|</span>
-                          <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                          <span style={{ color: 'var(--lc-line2)' }}>|</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                             <MapPin size={9} color="var(--lc-dim)" />
-                            <span
-                              className="lc-meta"
-                              style={{ fontSize: 10, color: "var(--lc-dim)", fontWeight: 500 }}
-                            >
-                              {lead.preferredLocation}
-                            </span>
+                            <span className="lc-meta" style={{ fontSize: 10, color: 'var(--lc-dim)', fontWeight: 500 }}>{lead.preferredLocation}</span>
                           </div>
                         </>
                       )}
 
                       {fieldsMissing > 0 && (
                         <>
-                          <span style={{ color: "var(--lc-line2)" }}>|</span>
-                          <div
-                            style={{
-                              display: "inline-block",
-                              padding: "1px 6px",
-                              borderRadius: 4,
-                              background: "rgba(239,68,68,0.08)",
-                              color: "#ef4444",
-                              fontSize: 9.5,
-                              fontWeight: 600,
-                            }}
-                          >
+                          <span style={{ color: 'var(--lc-line2)' }}>|</span>
+                          <div style={{
+                            display: 'inline-block',
+                            padding: '1px 6px', borderRadius: 4,
+                            background: 'rgba(239,68,68,0.08)', color: '#ef4444',
+                            fontSize: 9.5, fontWeight: 600,
+                          }}>
                             {fieldsMissing} missing
                           </div>
                         </>
                       )}
                     </div>
 
-
+                    {autoTags.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                        {autoTags.map((tag, idx) => (
+                          <span
+                            key={`${tag.label}-${idx}`}
+                            style={{
+                              fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 999,
+                              color: tag.urgent ? '#7f1d1d' : '#111827',
+                              background: `${tag.color}33`, border: `1px solid ${tag.color}`,
+                            }}
+                          >
+                            {tag.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Quick actions on collapsed */}
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 6,
-                      flexShrink: 0,
-                      paddingTop: 2,
-                      alignItems: "flex-end",
-                    }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, paddingTop: 2, alignItems: 'flex-end' }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "flex-end",
-                        gap: 4,
-                        width: "100%",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 40,
-                          height: 4,
-                          background: "var(--lc-bg3)",
-                          borderRadius: 2,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            height: "100%",
-                            width: `${progress}%`,
-                            background: progressColor,
-                            borderRadius: 2,
-                            transition: "width 0.3s ease",
-                          }}
-                        />
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, width: '100%', flexWrap: 'wrap' }}>
+                      <div style={{ width: 40, height: 4, background: 'var(--lc-bg3)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${progress}%`, background: progressColor, borderRadius: 2, transition: 'width 0.3s ease' }} />
                       </div>
-                      <span
-                        className="lc-progress-pct"
-                        style={{
-                          fontSize: 8.5,
-                          fontWeight: 700,
-                          color: progressColor,
-                          fontFamily: "var(--lc-mono)",
-                          textAlign: "right",
-                          minWidth: 18,
-                        }}
-                      >
-                        {progress}%
-                      </span>
+                      <span className="lc-progress-pct" style={{ fontSize: 8.5, fontWeight: 700, color: progressColor, fontFamily: 'var(--lc-mono)', textAlign: 'right', minWidth: 18 }}>{progress}%</span>
 
                       {!isAssignedByMeReadOnly && (
                         <button
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openScheduleFromLead(lead, m.zone || "");
-                          }}
+                          onClick={(e) => { e.stopPropagation(); openScheduleFromLead(lead, m.zone || ''); }}
                           className="inline-flex items-center gap-1 rounded-md border border-[var(--lc-line)] bg-[var(--lc-bg2)] px-1.5 py-0.5 text-[8.5px] font-semibold text-[var(--lc-mid)] hover:bg-[var(--lc-bg3)]"
                           title="Tour"
                         >
@@ -1380,17 +1488,7 @@ const Leads = () => {
                         </button>
                       )}
 
-                      <a
-                        href={`tel:${lead.phone}`}
-                        style={{
-                          padding: 4,
-                          borderRadius: 5,
-                          background: "var(--lc-bg2)",
-                          border: "1px solid var(--lc-line)",
-                          display: "flex",
-                        }}
-                        title="Call"
-                      >
+                      <a href={`tel:${lead.phone}`} style={{ padding: 4, borderRadius: 5, background: 'var(--lc-bg2)', border: '1px solid var(--lc-line)', display: 'flex' }} title="Call">
                         <PhoneCall size={10} color="var(--lc-mid)" />
                       </a>
 
@@ -1400,57 +1498,25 @@ const Leads = () => {
                           if (isAssignedByMeReadOnly) return;
                           setExpandedId(lead.id);
                         }}
-                        style={{
-                          padding: 4,
-                          borderRadius: 5,
-                          background: "var(--lc-bg2)",
-                          border: "1px solid var(--lc-line)",
-                          display: "flex",
-                          cursor: "pointer",
-                        }}
+                        style={{ padding: 4, borderRadius: 5, background: 'var(--lc-bg2)', border: '1px solid var(--lc-line)', display: 'flex', cursor: 'pointer' }}
                         title="Expand"
                       >
                         <ChevronDown size={10} color="var(--lc-mid)" />
                       </button>
                     </div>
 
-                    <div
-                      style={{
-                        width: "100%",
-                        display: "flex",
-                        justifyContent: "flex-end",
-                        alignItems: "center",
-                        gap: 4,
-                        flexWrap: "nowrap",
-                      }}
-                    >
-                      <span
-                        className="lc-timestamp"
-                        style={{
-                          fontSize: 8.5,
-                          fontWeight: 600,
-                          color: "var(--lc-dim)",
-                          fontFamily: "var(--lc-mono)",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
+                    <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4, flexWrap: 'nowrap' }}>
+                      <span className="lc-timestamp" style={{ fontSize: 8.5, fontWeight: 600, color: 'var(--lc-dim)', fontFamily: 'var(--lc-mono)', whiteSpace: 'nowrap' }}>
                         {createdAtStamp}
                       </span>
 
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigator.clipboard.writeText(`https://wa.me/${lead.phone.replace(/[^0-9]/g, "")}`);
-                          toast.success("WhatsApp link copied!");
+                          navigator.clipboard.writeText(`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`);
+                          toast.success('WhatsApp link copied!');
                         }}
-                        style={{
-                          padding: 4,
-                          borderRadius: 5,
-                          background: "rgba(34,197,94,0.08)",
-                          border: "1px solid rgba(34,197,94,0.25)",
-                          display: "flex",
-                          cursor: "pointer",
-                        }}
+                        style={{ padding: 4, borderRadius: 5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', display: 'flex', cursor: 'pointer' }}
                         title="Copy WhatsApp API"
                       >
                         <MessageCircle size={10} color="#22c55e" />
@@ -1458,17 +1524,7 @@ const Leads = () => {
 
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button
-                            style={{
-                              padding: 4,
-                              borderRadius: 5,
-                              background: "var(--lc-bg2)",
-                              border: "1px solid var(--lc-line)",
-                              display: "flex",
-                              cursor: "pointer",
-                            }}
-                            title="More options"
-                          >
+                          <button style={{ padding: 4, borderRadius: 5, background: 'var(--lc-bg2)', border: '1px solid var(--lc-line)', display: 'flex', cursor: 'pointer' }} title="More options">
                             <MoreVertical size={10} color="var(--lc-mid)" />
                           </button>
                         </DropdownMenuTrigger>
@@ -1482,7 +1538,7 @@ const Leads = () => {
                             className="font-mono text-[10px] text-muted-foreground cursor-pointer"
                             onSelect={() => {
                               navigator.clipboard.writeText(`L-${lead.id.slice(-6).toUpperCase()}`);
-                              toast.success("Lead ID copied!");
+                              toast.success('Lead ID copied!');
                             }}
                           >
                             L-{lead.id.slice(-6).toUpperCase()}
@@ -1490,40 +1546,28 @@ const Leads = () => {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
+
+                    <div style={{ width: '100%', fontSize: 8.5, lineHeight: 1.2, color: 'var(--lc-dim)', fontFamily: 'var(--lc-mono)', textAlign: 'right' }}>
+                      Added by: {lead.creator?.name || '-'}
+                    </div>
+
+                    <div style={{ width: '100%', fontSize: 8.5, lineHeight: 1.2, color: 'var(--lc-dim)', fontFamily: 'var(--lc-mono)', textAlign: 'right' }}>
+                      Assigned to: {lead.members?.name || '-'}
+                    </div>
                   </div>
                 </div>
-                {/* 🔥 Best PGs (Collapsed) */}
-                <div
-                  style={{ marginTop: 8, width: "100%", minWidth: 0 }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div
-                    style={{
-                      fontSize: 9,
-                      color: "var(--lc-dim)",
-                      marginBottom: 6,
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.04em",
-                    }}
-                  >
+
+                {/* Best PGs (Collapsed) */}
+                <div style={{ marginTop: 8, width: '100%', minWidth: 0 }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ fontSize: 9, color: 'var(--lc-dim)', marginBottom: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Best PGs
                   </div>
-
                   {bestPGs.length === 0 ? (
-                    <div style={{ fontSize: 9, color: "var(--lc-dim)" }}>No matches</div>
+                    <div style={{ fontSize: 9, color: 'var(--lc-dim)' }}>No matches</div>
                   ) : (
-                    <div
-                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start w-full"
-                      style={{ width: "100%", minWidth: 0 }}
-                    >
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start w-full" style={{ width: '100%', minWidth: 0 }}>
                       {bestPGs.slice(0, 3).map((pg: any) => (
-                        <div
-                          key={pg.id}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-full min-w-0"
-                          style={{ width: "100%", minWidth: 0 }}
-                        >
+                        <div key={pg.id} onClick={(e) => e.stopPropagation()} className="w-full min-w-0" style={{ width: '100%', minWidth: 0 }}>
                           <PGCard pg={pg} viewMode="grid" />
                         </div>
                       ))}
@@ -1533,6 +1577,7 @@ const Leads = () => {
               </div>
             );
           }
+
           // ─── EXPANDED CARD ───
           const currentStageIndex = pipelineStages.findIndex((s: any) => s.key === lead.status);
           const stageIdx = currentStageIndex !== -1 ? currentStageIndex : 0;
@@ -1552,15 +1597,22 @@ const Leads = () => {
             accentBg: 'var(--lc-accent-bg)',
           };
 
+          const isLoggingActivity = activityLeadId === lead.id;
+
           return (
             <motion.div
-              key={lead.id}
+              key={`${row.band}-${lead.id}-${rowIndex}`}
               initial={{ opacity: 0.9 }}
               animate={{ opacity: 1 }}
               style={{
                 background: isDuplicateLead ? 'rgba(251,113,133,0.055)' : 'var(--lc-bg1)',
                 borderRadius: 14,
-                border: isDuplicateLead ? '2px solid rgba(251,113,133,0.4)' : `2px solid var(--lc-acc)`,
+                border: hasUrgentTags
+                  ? '2px solid #7f1d1d'
+                  : isDuplicateLead
+                    ? '2px solid rgba(251,113,133,0.4)'
+                    : `2px solid var(--lc-acc)`,
+                borderLeft: hasUrgentTags ? '3px solid #dc2626' : `3px solid ${sBadge.color}`,
                 overflow: 'hidden',
               }}
             >
@@ -1602,10 +1654,7 @@ const Leads = () => {
                         {m.quality && (
                           <>
                             <span style={{ color: 'var(--lc-line2)' }}>|</span>
-                            <span style={{
-                              padding: '1px 8px', borderRadius: 10, fontSize: 9.5, fontWeight: 600,
-                              background: qualityBadge.bg, color: qualityBadge.color,
-                            }}>
+                            <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 9.5, fontWeight: 600, background: qualityBadge.bg, color: qualityBadge.color }}>
                               {m.quality.charAt(0).toUpperCase() + m.quality.slice(1)}
                             </span>
                           </>
@@ -1615,10 +1664,7 @@ const Leads = () => {
                         {m.zones.map((z: string) => <ZonePill key={z} zoneName={z} xs />)}
 
                         <span style={{ color: 'var(--lc-line2)' }}>|</span>
-                        <span style={{
-                          padding: '1px 8px', borderRadius: 10, fontSize: 9.5, fontWeight: 600,
-                          background: sBadge.bg, color: sBadge.color, border: `1px solid ${sBadge.border}`,
-                        }}>
+                        <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 9.5, fontWeight: 600, background: sBadge.bg, color: sBadge.color, border: `1px solid ${sBadge.border}` }}>
                           {stageLabel}
                         </span>
                       </div>
@@ -1630,11 +1676,7 @@ const Leads = () => {
                         {budgetDisplay && (
                           <>
                             <span style={{ color: 'var(--lc-line2)' }}>|</span>
-                            <span style={{
-                              fontSize: 10, padding: '1px 7px',
-                              background: 'var(--lc-bg2)', borderRadius: 4, color: 'var(--lc-mid)',
-                              fontFamily: 'var(--lc-mono)', fontWeight: 500,
-                            }}>
+                            <span style={{ fontSize: 10, padding: '1px 7px', background: 'var(--lc-bg2)', borderRadius: 4, color: 'var(--lc-mid)', fontFamily: 'var(--lc-mono)', fontWeight: 500 }}>
                               {budgetDisplay}
                             </span>
                           </>
@@ -1652,9 +1694,7 @@ const Leads = () => {
                         {lead.moveInDate && (
                           <>
                             <span style={{ color: 'var(--lc-line2)' }}>|</span>
-                            <span style={{ fontSize: 10, color: 'var(--lc-mid)', fontWeight: 500 }}>
-                              {lead.moveInDate}
-                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--lc-mid)', fontWeight: 500 }}>{lead.moveInDate}</span>
                           </>
                         )}
 
@@ -1671,22 +1711,34 @@ const Leads = () => {
                         {fieldsMissing > 0 && (
                           <>
                             <span style={{ color: 'var(--lc-line2)' }}>|</span>
-                            <div style={{
-                              display: 'inline-block',
-                              padding: '1px 6px', borderRadius: 4,
-                              background: 'rgba(239,68,68,0.08)', color: '#ef4444',
-                              fontSize: 9.5, fontWeight: 600,
-                            }}>
+                            <div style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontSize: 9.5, fontWeight: 600 }}>
                               {fieldsMissing} missing
                             </div>
                           </>
                         )}
                       </div>
+
+                      {autoTags.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                          {autoTags.map((tag, idx) => (
+                            <span
+                              key={`${tag.label}-${idx}`}
+                              style={{
+                                fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 999,
+                                color: tag.urgent ? '#7f1d1d' : '#111827',
+                                background: `${tag.color}33`, border: `1px solid ${tag.color}`,
+                              }}
+                            >
+                              {tag.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Right side — compact actions */}
-                  <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, paddingTop: 2, alignItems: 'flex-end' }}>
+                  <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0, paddingTop: 2, alignItems: 'flex-end' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, width: '100%', flexWrap: 'wrap' }}>
                       <div style={{ width: 40, height: 4, background: 'var(--lc-bg3)', borderRadius: 2, overflow: 'hidden' }}>
                         <div style={{ height: '100%', width: `${progress}%`, background: progressColor, borderRadius: 2, transition: 'width 0.3s ease' }} />
@@ -1754,40 +1806,28 @@ const Leads = () => {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
+
+                    <div style={{ width: '100%', fontSize: 8.5, lineHeight: 1.2, color: 'var(--lc-dim)', fontFamily: 'var(--lc-mono)', textAlign: 'right' }}>
+                      Added by: {lead.creator?.name || '-'}
+                    </div>
+
+                    <div style={{ width: '100%', fontSize: 8.5, lineHeight: 1.2, color: 'var(--lc-dim)', fontFamily: 'var(--lc-mono)', textAlign: 'right' }}>
+                      Assigned to: {lead.members?.name || '-'}
+                    </div>
                   </div>
                 </div>
-                {/* FIX 456: Fixed expanded PG block uses [...bestPGs, ...morePGs].length check */}
-                <div
-                  style={{ marginTop: 8, width: "100%", minWidth: 0 }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: D.mid,
-                      marginBottom: 6,
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.04em",
-                    }}
-                  >
+
+                {/* Best PG Matches (Expanded) */}
+                <div style={{ marginTop: 8, width: '100%', minWidth: 0 }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ fontSize: 10, color: D.mid, marginBottom: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Best PG Matches
                   </div>
-
                   {[...bestPGs, ...morePGs].length === 0 ? (
                     <div style={{ fontSize: 10, color: D.dim }}>No matches found</div>
                   ) : (
-                    <div
-                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start w-full"
-                      style={{ width: "100%", minWidth: 0 }}
-                    >
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start w-full" style={{ width: '100%', minWidth: 0 }}>
                       {[...bestPGs, ...morePGs].slice(0, 6).map((pg: any) => (
-                        <div
-                          key={pg.id}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-full min-w-0"
-                          style={{ width: "100%", minWidth: 0 }}
-                        >
+                        <div key={pg.id} onClick={(e) => e.stopPropagation()} className="w-full min-w-0" style={{ width: '100%', minWidth: 0 }}>
                           <PGCard pg={pg} viewMode="grid" />
                         </div>
                       ))}
@@ -1814,24 +1854,16 @@ const Leads = () => {
                           disabled={isAssignedByMeReadOnly || isStageUpdating || isCurrent}
                           title={isCurrent ? 'Current stage' : `Move to ${stage.label}`}
                           style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            position: 'relative',
-                            flex: 1,
-                            minWidth: 0,
-                            border: 'none',
-                            background: 'transparent',
-                            padding: 0,
+                            display: 'flex', flexDirection: 'column', alignItems: 'center',
+                            position: 'relative', flex: 1, minWidth: 0,
+                            border: 'none', background: 'transparent', padding: 0,
                             cursor: isAssignedByMeReadOnly || isStageUpdating || isCurrent ? 'not-allowed' : 'pointer',
                             opacity: isStageUpdating && !isCurrent ? 0.55 : 1,
                           }}
                         >
-                          {/* Connecting Line */}
                           {showLine && (
                             <div style={{ position: 'absolute', top: 11, left: '50%', right: '-50%', height: 2, background: lineCompleted ? D.acc : D.line2, zIndex: 0 }} />
                           )}
-                          {/* Node Circle */}
                           <div style={{
                             width: 24, height: 24, borderRadius: 12, zIndex: 1, position: 'relative',
                             background: isCompleted ? D.acc : isCurrent ? '#fff' : D.bg2,
@@ -1839,7 +1871,7 @@ const Leads = () => {
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             boxShadow: isCurrent ? `0 0 0 4px rgba(108,92,231,0.12)` : 'none',
                             color: isCompleted ? '#fff' : isCurrent ? D.acc : D.mid,
-                            transition: 'all 0.2s ease'
+                            transition: 'all 0.2s ease',
                           }}>
                             {isTargetStageUpdating ? (
                               <Loader2 size={11} strokeWidth={2.5} className="animate-spin" />
@@ -1849,12 +1881,11 @@ const Leads = () => {
                               <div style={{ width: 8, height: 8, borderRadius: 4, background: D.acc }} />
                             ) : null}
                           </div>
-                          {/* Node Label */}
                           <div style={{
                             marginTop: 8, fontSize: 9, fontWeight: isCurrent ? 800 : 600,
                             color: isCurrent ? D.hi : isCompleted ? D.mid : D.dim,
                             textAlign: 'center', lineHeight: 1.25, width: '100%', padding: '0 2px',
-                            overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'
+                            overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                           }}>
                             {stage.label}
                           </div>
@@ -1867,26 +1898,21 @@ const Leads = () => {
 
               {/* ─── Details Grid ─── */}
               <div className="lc-expand-grid" style={{
-                display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
+                display: isLoggingActivity ? 'none' : 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
                 gap: 1, background: D.line, margin: '6px 16px 0', borderRadius: 10, overflow: 'hidden',
-                border: `1px solid ${D.line}`
+                border: `1px solid ${D.line}`,
               }}>
-                <div style={{ background: D.bg1, padding: '8px 10px' }}>
-                  <div style={{ fontSize: 8.5, color: D.dim, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 3 }}>LOCATION</div>
-                  <p style={{ fontSize: 11, color: D.hi, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lead.preferredLocation || '-'}>{lead.preferredLocation || '-'}</p>
-                </div>
-                <div style={{ background: D.bg1, padding: '8px 10px' }}>
-                  <div style={{ fontSize: 8.5, color: D.dim, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 3 }}>MOVE-IN D.</div>
-                  <p style={{ fontSize: 11, color: D.hi, fontWeight: 500, margin: 0 }}>{lead.moveInDate || '-'}</p>
-                </div>
-                <div style={{ background: D.bg1, padding: '8px 10px' }}>
-                  <div style={{ fontSize: 8.5, color: D.dim, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 3 }}>NEED</div>
-                  <p style={{ fontSize: 11, color: D.hi, fontWeight: 500, margin: 0 }}>{m.need || '-'}</p>
-                </div>
-                <div style={{ background: D.bg1, padding: '8px 10px' }}>
-                  <div style={{ fontSize: 8.5, color: D.dim, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 3 }}>ROOM</div>
-                  <p style={{ fontSize: 11, color: D.hi, fontWeight: 500, margin: 0 }}>{m.room || '-'}</p>
-                </div>
+                {[
+                  { label: 'LOCATION', value: lead.preferredLocation || '-', title: lead.preferredLocation || '-', ellipsis: true },
+                  { label: 'MOVE-IN D.', value: lead.moveInDate || '-' },
+                  { label: 'NEED', value: m.need || '-' },
+                  { label: 'ROOM', value: m.room || '-' },
+                ].map(({ label, value, title, ellipsis }) => (
+                  <div key={label} style={{ background: D.bg1, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 8.5, color: D.dim, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
+                    <p style={{ fontSize: 11, color: D.hi, fontWeight: 500, margin: 0, ...(ellipsis ? { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } : {}) }} title={title}>{value}</p>
+                  </div>
+                ))}
                 <div style={{ background: D.bg1, padding: '8px 10px' }}>
                   <div style={{ fontSize: 8.5, color: D.dim, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 3 }}>IN BLR?</div>
                   <p style={{ fontSize: 11, color: m.inBLR === null ? D.dim : D.hi, fontWeight: 500, margin: 0, fontStyle: m.inBLR === null ? 'italic' : 'normal' }}>
@@ -1900,11 +1926,7 @@ const Leads = () => {
                 <div style={{ background: D.bg1, padding: '8px 10px' }}>
                   <div style={{ fontSize: 8.5, color: D.dim, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 3 }}>QUALITY</div>
                   {m.quality ? (
-                    <span style={{
-                      display: 'inline-block', padding: '1px 8px', borderRadius: 10,
-                      fontSize: 9.5, fontWeight: 600,
-                      background: qualityBadge.bg, color: qualityBadge.color,
-                    }}>
+                    <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 9.5, fontWeight: 600, background: qualityBadge.bg, color: qualityBadge.color }}>
                       {m.quality.charAt(0).toUpperCase() + m.quality.slice(1)}
                     </span>
                   ) : <p style={{ fontSize: 11, color: D.dim, margin: 0 }}>-</p>}
@@ -1914,10 +1936,7 @@ const Leads = () => {
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                     {m.budgetRanges?.length > 0 ? (
                       m.budgetRanges.map((r: any, i: number) => (
-                        <span key={i} style={{
-                          padding: '1px 6px', borderRadius: 6, fontSize: 10, fontWeight: 600,
-                          background: 'rgba(52,211,153,0.1)', color: '#34d399', border: '1px solid rgba(52,211,153,0.3)', fontFamily: 'var(--lc-mono)',
-                        }}>{r.display}</span>
+                        <span key={i} style={{ padding: '1px 6px', borderRadius: 6, fontSize: 10, fontWeight: 600, background: 'rgba(52,211,153,0.1)', color: '#34d399', border: '1px solid rgba(52,211,153,0.3)', fontFamily: 'var(--lc-mono)' }}>{r.display}</span>
                       ))
                     ) : (
                       <p style={{ fontSize: 11, color: D.hi, fontWeight: 500, margin: 0 }}>{lead.budget || '-'}</p>
@@ -1953,8 +1972,7 @@ const Leads = () => {
               </div>
 
               {/* ─── Notes & Actions Section ─── */}
-              <div style={{ padding: '12px 16px', background: D.bgRow, borderTop: `1px solid ${D.line}` }}>
-                {/* Notes row */}
+              <div style={{ display: isLoggingActivity ? 'none' : 'block', padding: '12px 16px', background: D.bgRow, borderTop: `1px solid ${D.line}` }}>
                 {lead.notes && (
                   <div style={{ marginBottom: 10, padding: '8px 10px', background: D.bg1, borderRadius: 8, border: `1px solid ${D.line}` }}>
                     <div style={{ fontSize: 9, color: D.dim, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 4 }}>NOTES</div>
@@ -1962,7 +1980,6 @@ const Leads = () => {
                   </div>
                 )}
 
-                {/* Multiple Areas */}
                 {m.areas.length > 1 && (
                   <div style={{ background: D.accentBg, border: `1px solid ${D.line}`, borderRadius: 8, padding: '9px 11px', marginBottom: 10 }}>
                     <div style={{ fontSize: 8.5, color: D.acc, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.07em', marginBottom: 5 }}>📍 Areas Detected</div>
@@ -1972,8 +1989,88 @@ const Leads = () => {
                   </div>
                 )}
 
-                {/* Geo Intelligence */}
                 <GeoIntelPanel lead={{ location: lead.preferredLocation, rawText: '', areas: m.areas }} />
+
+                {/* Activity Log */}
+                <div style={{ marginTop: 10, padding: '10px', borderRadius: 8, border: `1px solid ${D.line}`, background: D.bg1 }}>
+                  <div style={{ fontSize: 9, color: D.dim, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+                    Activity Log
+                  </div>
+
+                  {(() => {
+                    const raw = Array.isArray((lead as any).activity) ? ([...(lead as any).activity] as any[]) : [];
+                    raw.sort((a: any, b: any) => new Date(b.on).getTime() - new Date(a.on).getTime());
+                    const showAll = expandedActivityIds.has(lead.id);
+                    const visible = showAll ? raw : raw.slice(0, 3);
+
+                    return (
+                      <>
+                        {visible.length === 0 && <div style={{ fontSize: 11, color: D.dim }}>No activity logged yet.</div>}
+                        {visible.map((entry: any, idx: number) => (
+                          <div
+                            key={entry.id || idx}
+                            style={{
+                              display: 'flex', alignItems: 'flex-start', gap: 8,
+                              paddingBottom: idx === visible.length - 1 ? 0 : 8,
+                              marginBottom: idx === visible.length - 1 ? 0 : 8,
+                              borderBottom: idx === visible.length - 1 ? 'none' : `1px dashed ${D.line}`,
+                            }}
+                          >
+                            <div style={{ fontSize: 14, lineHeight: '16px' }}>{actIcon(entry.type)}</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 11, color: D.text }}>{entry.note || '-'}</div>
+                              <div style={{ fontSize: 10, color: D.dim, marginTop: 2 }}>
+                                {formatActivityDate(entry.on)} · {entry.by || '-'}
+                              </div>
+                            </div>
+                            <div style={{ width: 7, height: 7, borderRadius: 999, background: actColor(entry.type), marginTop: 5 }} />
+                          </div>
+                        ))}
+
+                        {raw.length > 3 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedActivityIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(lead.id)) next.delete(lead.id);
+                                else next.add(lead.id);
+                                return next;
+                              });
+                            }}
+                            style={{ marginTop: 8, fontSize: 11, fontWeight: 600, color: '#2563eb', background: 'transparent', border: 'none', padding: 0 }}
+                          >
+                            {showAll ? 'Show less' : `+ ${raw.length - 3} more entries`}
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+
+                <div style={{ marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => setActivityLeadId(lead.id)}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-accent-foreground shadow-sm hover:opacity-95"
+                  >
+                    + Log Activity
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: isLoggingActivity ? 'block' : 'none', margin: '6px 16px 12px' }} onClick={(e) => e.stopPropagation()}>
+                <LogActivitySheet
+                  open={activityLeadId === lead.id}
+                  onOpenChange={(nextOpen) => {
+                    if (!nextOpen) setActivityLeadId(null);
+                  }}
+                  lead={lead}
+                  pipelineStages={pipelineStages.map((stage: any) => ({ key: String(stage.key), label: String(stage.label) }))}
+                  authUser={user ? { id: String(user.id || ''), role: String(user.role || ''), fullName: user.fullName } : null}
+                  onSaved={() => setActivityLeadId(null)}
+                />
               </div>
             </motion.div>
           );
@@ -2045,7 +2142,7 @@ const Leads = () => {
               ) : null}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-xs">Lead</Label>
                 <Input value={scheduleLeadName} readOnly className="h-8 text-xs bg-muted/40" />
