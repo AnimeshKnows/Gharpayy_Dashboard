@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { MapPin, Calendar, Check, ChevronDown, ChevronUp, DollarSign, FileText } from "lucide-react";
+import { MapPin, Calendar, Check, DollarSign, FileText } from "lucide-react";
 import { toast } from "sonner";
 import type { PGEntry } from "@/data/pgMasterData";
 
@@ -46,7 +46,12 @@ function getMinPrice(pg: PGEntry) {
 }
 
 export interface PGCardProps {
-  pg: PGEntry & { score?: number };
+  pg: PGEntry & {
+    score?: number;
+    matchScore?: number | null;
+    match_score?: number | null;
+    distanceKm?: number | null;
+  };
   viewMode?: "grid" | "list";
   isAdmin?: boolean;
   /**
@@ -64,6 +69,20 @@ const PGCard: React.FC<PGCardProps> = ({ pg, viewMode = "grid", isAdmin = false,
   const minPrice = getMinPrice(pg);
   const isActive = pg.isActive !== false; // treat undefined (sheet data) as true
   const isList = viewMode === "list";
+
+  // Resolve score to a clean integer percentage
+  const rawScore =
+    (pg as any).matchScore ?? (pg as any).score ?? (pg as any).match_score ?? null;
+  const scorePct: number | null =
+    typeof rawScore === "number"
+      ? Math.round(rawScore)
+      : rawScore != null && !Number.isNaN(Number(rawScore))
+        ? Math.round(Number(rawScore))
+        : null;
+
+  // Distance from lead location (km), passed in via enriched PG object
+  const distanceKm: number | null =
+    typeof (pg as any).distanceKm === "number" ? (pg as any).distanceKm : null;
 
   const genderConfig =
     pg.gender?.toLowerCase().includes("girl") || pg.gender?.toLowerCase().includes("female")
@@ -96,6 +115,23 @@ const PGCard: React.FC<PGCardProps> = ({ pg, viewMode = "grid", isAdmin = false,
     e.stopPropagation();
     toast.info("Status toggle is only available in Inventory OS");
   };
+
+  // Score badge colors
+  const scoreColor =
+    scorePct == null ? T.t2
+    : scorePct >= 80 ? T.green
+    : scorePct >= 60 ? T.amber
+    : T.red;
+  const scoreBg =
+    scorePct == null ? T.t3
+    : scorePct >= 80 ? T.greenD
+    : scorePct >= 60 ? T.amberD
+    : T.redD;
+  const scoreBorder =
+    scorePct == null ? T.t3
+    : scorePct >= 80 ? "rgba(22,163,74,0.28)"
+    : scorePct >= 60 ? "rgba(217,119,6,0.28)"
+    : "rgba(220,38,38,0.28)";
 
   return (
     <div
@@ -174,7 +210,8 @@ const PGCard: React.FC<PGCardProps> = ({ pg, viewMode = "grid", isAdmin = false,
                 {pg.pid}
               </span>
             </div>
-            {/* Exact Name line as requested */}
+
+            {/* Exact Name line */}
             {pg.exactName && (
               <div
                 style={{
@@ -223,6 +260,48 @@ const PGCard: React.FC<PGCardProps> = ({ pg, viewMode = "grid", isAdmin = false,
                 </span>
               )}
             </div>
+
+            {/* ── Score + Distance badges ── */}
+            {(scorePct != null || distanceKm != null) && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6, flexWrap: "wrap" }}>
+                {scorePct != null && (
+                  <span
+                    style={{
+                      fontFamily: T.mono,
+                      fontSize: 8,
+                      fontWeight: 800,
+                      color: scoreColor,
+                      background: scoreBg,
+                      border: `1px solid ${scoreBorder}`,
+                      padding: "2px 6px",
+                      borderRadius: 5,
+                      whiteSpace: "nowrap",
+                    }}
+                    title="Match score"
+                  >
+                    ✦ {scorePct}% match
+                  </span>
+                )}
+                {distanceKm != null && (
+                  <span
+                    style={{
+                      fontFamily: T.mono,
+                      fontSize: 8,
+                      fontWeight: 700,
+                      color: T.t1,
+                      background: T.bg3,
+                      border: `1px solid ${T.line}`,
+                      padding: "2px 6px",
+                      borderRadius: 5,
+                      whiteSpace: "nowrap",
+                    }}
+                    title="Distance from lead location"
+                  >
+                    📍 {distanceKm.toFixed(1)} km
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {!isList && (

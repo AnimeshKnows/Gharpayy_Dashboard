@@ -29,6 +29,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { T, QUALITY, GEO_TECH_PARKS, FDISPLAY } from '@/lib/leadGeoData';
 import { parseMoveInV2, parseBudgetV2 } from '@/lib/leadParserV2';
 import { LEADS_UPDATED_AT_KEY, getLeadsUpdatedStamp } from '@/lib/leadSync';
+import { resolveLocationToCoords, getDistance } from '@/lib/areaCoordinates';
 import { ZonePill, BudgetChips, GeoIntelPanel } from '@/components/LeadUIAtoms';
 import PGCard from "@/components/PGCard";
 import { ScheduleTourForm } from '@/components/tours/ScheduleTourForm';
@@ -1888,58 +1889,123 @@ const Leads = () => {
                 )}
 
                 {/* ─── Geo Intelligence + Best PG two-column layout ─── */}
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="geo-pg-grid"
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)',
-                    gap: 12,
-                    alignItems: 'start',
-                    marginBottom: 10,
-                  }}
-                >
-                  {/* Left column: Geo Intel Panel */}
-                  <div style={{ minWidth: 0 }}>
-                    <GeoIntelPanel lead={{ location: lead.preferredLocation, rawText: '', areas: m.areas }} />
-                  </div>
+                {(() => {
+                  const allPGs = [...bestPGs, ...morePGs];
+                  const showMore = showMorePGsIds.has(lead.id);
+                  const canShowMore = allPGs.length > 3;
 
-                  {/* Right column: Best PG Cards */}
-                  <div style={{ minWidth: 0 }}>
-                    {(() => {
-                      const allPGs = [...bestPGs, ...morePGs];
-                      const showMore = showMorePGsIds.has(lead.id);
-                      const visiblePGs = showMore ? allPGs.slice(0, 6) : allPGs.slice(0, 3);
-                      const canShowMore = allPGs.length > 3;
-                      return (
-                        <div style={{
-                          background: 'rgba(234,179,8,0.05)',
-                          border: '1px solid rgba(234,179,8,0.2)',
-                          borderRadius: 8,
-                          padding: '10px 11px',
-                          height: '100%',
-                          boxSizing: 'border-box',
-                        }}>
-                          <div style={{
-                            fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const,
-                            letterSpacing: '0.07em', marginBottom: 8,
-                            color: D.dim,
-                          }}>
-                            🏠 Best PG Matches
-                          </div>
+                  // ── Resolve lead location coords once ──────────────────
+                  const leadLocationQuery =
+                    (m.areas.length > 0 ? m.areas[0] : null) ??
+                    lead.preferredLocation ??
+                    null;
+                  const leadCoords = leadLocationQuery
+                    ? resolveLocationToCoords(leadLocationQuery)
+                    : null;
 
-                          {allPGs.length === 0 ? (
+                  // ── Enrich all PGs with scorePct + distanceKm ──────────
+                  const enrichedAllPGs = allPGs.map((pg: any, idx: number) => {
+                    const rawScore = pg?.matchScore ?? pg?.score ?? pg?.match_score ?? null;
+                    const scorePct: number | null =
+                      typeof rawScore === 'number'
+                        ? Math.round(rawScore)
+                        : rawScore != null && !Number.isNaN(Number(rawScore))
+                          ? Math.round(Number(rawScore))
+                          : null;
+
+                    let distanceKm: number | null = null;
+                    if (leadCoords) {
+                      const pgAreaQuery: string | null =
+                        pg?.area ?? pg?.locality ?? pg?.location ?? null;
+                      if (pgAreaQuery) {
+                        const pgCoords = resolveLocationToCoords(String(pgAreaQuery));
+                        if (pgCoords) {
+                          distanceKm = getDistance(
+                            leadCoords.lat, leadCoords.lng,
+                            pgCoords.lat, pgCoords.lng
+                          );
+                        }
+                      }
+                    }
+
+                    return {
+                      ...pg,
+                      id: pg?.id ?? `pg-${lead.id}-${idx}`,
+                      scorePct,
+                      matchScore: scorePct ?? pg?.matchScore ?? pg?.score ?? pg?.match_score,
+                      distanceKm,
+                    };
+                  });
+
+                  const visiblePGs = (showMore ? enrichedAllPGs.slice(0, 6) : enrichedAllPGs.slice(0, 3))
+                    .map((pg: any, idx: number) => ({
+                      ...pg,
+                      id: pg?.id ?? `pg-${lead.id}-visible-${idx}`,
+                    }));
+
+                  const headerStyle: React.CSSProperties = {
+                    fontSize: 9,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.07em',
+                    marginBottom: 8,
+                    color: D.dim,
+                    flexShrink: 0,
+                  };
+
+                  // One shared background card wrapping both columns.
+                  // The grid inside drives layout; both columns are always
+                  // the same height because they live inside the same flex/grid row.
+                  return (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="geo-pg-grid-outer"
+                      style={{
+                        background: 'rgba(234,179,8,0.05)',
+                        border: '1px solid rgba(234,179,8,0.2)',
+                        borderRadius: 8,
+                        padding: '10px 11px',
+                        marginBottom: 10,
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <div
+                        className="geo-pg-grid"
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)',
+                          gap: 12,
+                          alignItems: 'stretch',
+                        }}
+                      >
+                        {/* Left column: Geo Intelligence
+                            No extra background — the shared outer card provides it.
+                            The geo-intel-shell-reset class strips GeoIntelPanel's own card bg. */}
+                        <div className="geo-intel-shell-reset" style={{ minWidth: 0, display: 'flex', flexDirection: 'column'}}>
+                          <GeoIntelPanel
+                            lead={{ location: lead.preferredLocation, rawText: '', areas: m.areas }}
+                            pgs={enrichedAllPGs}
+                          />
+                        </div>
+
+                        {/* Right column: Best PG Cards — also no extra background */}
+                        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                          <div style={headerStyle}>🏠 Best PG Matches</div>
+
+                          {enrichedAllPGs.length === 0 ? (
                             <div style={{ fontSize: 10, color: D.dim, padding: '8px 0', fontStyle: 'italic' }}>
                               No PG matches for this lead.
                             </div>
                           ) : (
                             <>
                               <AnimatePresence initial={false}>
-                                <div style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
-                                  gap: 8,
-                                }}>
+                                <div
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+                                    gap: 8,
+                                  }}
+                                >
                                   {visiblePGs.map((pg: any, idx: number) => (
                                     <motion.div
                                       key={pg.id}
@@ -1985,29 +2051,42 @@ const Leads = () => {
                                     cursor: 'pointer',
                                     transition: 'background 0.15s ease',
                                   }}
-                                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(108,92,231,0.13)'; }}
-                                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(108,92,231,0.07)'; }}
+                                  onMouseEnter={(e) => {
+                                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(108,92,231,0.13)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(108,92,231,0.07)';
+                                  }}
                                 >
                                   {showMore ? (
                                     <><ChevronUp size={11} strokeWidth={2.5} /> Show Less</>
                                   ) : (
-                                    <><ChevronDown size={11} strokeWidth={2.5} /> Show {Math.min(allPGs.length, 6) - 3} More</>
+                                    <><ChevronDown size={11} strokeWidth={2.5} /> Show {Math.min(enrichedAllPGs.length, 6) - 3} More</>
                                   )}
                                 </button>
                               )}
                             </>
                           )}
                         </div>
-                      );
-                    })()}
-                  </div>
-                </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <style>{`
                   @media (max-width: 640px) {
                     .geo-pg-grid { grid-template-columns: 1fr !important; }
                   }
                   @media (min-width: 641px) and (max-width: 900px) {
                     .geo-pg-grid { grid-template-columns: minmax(0,5fr) minmax(0,7fr) !important; gap: 8px !important; }
+                  }
+                  /* Strip GeoIntelPanel's own card shell so the shared outer bg is the only one */
+                  .geo-intel-shell-reset > * {
+                    background: transparent !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    padding-left: 0 !important;
+                    padding-right: 0 !important;
+                    padding-top: 0 !important;
                   }
                 `}</style>
 
