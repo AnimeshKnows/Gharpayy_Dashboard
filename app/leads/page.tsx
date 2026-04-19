@@ -180,6 +180,7 @@ const Leads = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [activityLeadId, setActivityLeadId] = useState<string | null>(null);
   const [expandedActivityIds, setExpandedActivityIds] = useState<Set<string>>(new Set());
+  const [showMorePGsIds, setShowMorePGsIds] = useState<Set<string>>(new Set());
   const [bandOpen, setBandOpen] = useState<Record<string, boolean>>({
     mandatory: true,
     fire: true,
@@ -1557,23 +1558,48 @@ const Leads = () => {
                   </div>
                 </div>
 
-                {/* Best PGs (Collapsed) */}
-                <div style={{ marginTop: 8, width: '100%', minWidth: 0 }} onClick={(e) => e.stopPropagation()}>
-                  <div style={{ fontSize: 9, color: 'var(--lc-dim)', marginBottom: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Best PGs
+                {/* Best PG hint (Collapsed) — name + score pills, no full cards */}
+                {bestPGs.length > 0 && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}
+                  >
+                    <span style={{ fontSize: 8, color: 'var(--lc-dim)', fontWeight: 600, letterSpacing: '0.04em', fontFamily: 'var(--lc-mono)', textTransform: 'uppercase' as const, flexShrink: 0 }}>
+                      Best PGs
+                    </span>
+                    <span style={{ fontSize: 10, color: 'var(--lc-dim)', letterSpacing: '0.1em', opacity: 0.5, flexShrink: 0 }}>···</span>
+                    {bestPGs.slice(0, 3).map((pg: any, idx: number) => {
+                      const score = pg.matchScore ?? pg.score ?? pg.match_score ?? null;
+                      const scoreNum = typeof score === 'number' ? Math.round(score) : null;
+                      return (
+                        <span
+                          key={pg.id ?? idx}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 3,
+                            fontSize: 8.5, fontWeight: 600,
+                            padding: '2px 7px', borderRadius: 999,
+                            background: 'rgba(108,92,231,0.07)',
+                            border: '1px solid rgba(108,92,231,0.18)',
+                            color: 'var(--lc-mid)',
+                            maxWidth: 160, overflow: 'hidden',
+                          }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {pg.name || pg.propertyName || pg.title || `PG ${idx + 1}`}
+                          </span>
+                          {scoreNum !== null && (
+                            <span style={{
+                              fontSize: 8, fontWeight: 700, flexShrink: 0,
+                              color: scoreNum >= 75 ? '#22c55e' : scoreNum >= 50 ? '#f97316' : 'var(--lc-dim)',
+                            }}>
+                              {scoreNum}%
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })}
                   </div>
-                  {bestPGs.length === 0 ? (
-                    <div style={{ fontSize: 9, color: 'var(--lc-dim)' }}>No matches</div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start w-full" style={{ width: '100%', minWidth: 0 }}>
-                      {bestPGs.slice(0, 3).map((pg: any) => (
-                        <div key={pg.id} onClick={(e) => e.stopPropagation()} className="w-full min-w-0" style={{ width: '100%', minWidth: 0 }}>
-                          <PGCard pg={pg} viewMode="grid" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             );
           }
@@ -1817,24 +1843,6 @@ const Leads = () => {
                   </div>
                 </div>
 
-                {/* Best PG Matches (Expanded) */}
-                <div style={{ marginTop: 8, width: '100%', minWidth: 0 }} onClick={(e) => e.stopPropagation()}>
-                  <div style={{ fontSize: 10, color: D.mid, marginBottom: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Best PG Matches
-                  </div>
-                  {[...bestPGs, ...morePGs].length === 0 ? (
-                    <div style={{ fontSize: 10, color: D.dim }}>No matches found</div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start w-full" style={{ width: '100%', minWidth: 0 }}>
-                      {[...bestPGs, ...morePGs].slice(0, 6).map((pg: any) => (
-                        <div key={pg.id} onClick={(e) => e.stopPropagation()} className="w-full min-w-0" style={{ width: '100%', minWidth: 0 }}>
-                          <PGCard pg={pg} viewMode="grid" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
                 {/* ─── Pipeline Stages Stepper ─── */}
                 <div style={{ marginTop: 14, paddingBottom: 4 }}>
                   <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', padding: '0 4px' }} onClick={(e) => e.stopPropagation()}>
@@ -1989,7 +1997,129 @@ const Leads = () => {
                   </div>
                 )}
 
-                <GeoIntelPanel lead={{ location: lead.preferredLocation, rawText: '', areas: m.areas }} />
+                {/* ─── Geo Intelligence + Best PG two-column layout ─── */}
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="geo-pg-grid"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)',
+                    gap: 12,
+                    alignItems: 'start',
+                    marginBottom: 10,
+                  }}
+                >
+                  {/* Left column: Geo Intel Panel */}
+                  <div style={{ minWidth: 0 }}>
+                    <GeoIntelPanel lead={{ location: lead.preferredLocation, rawText: '', areas: m.areas }} />
+                  </div>
+
+                  {/* Right column: Best PG Cards */}
+                  <div style={{ minWidth: 0 }}>
+                    {(() => {
+                      const allPGs = [...bestPGs, ...morePGs];
+                      const showMore = showMorePGsIds.has(lead.id);
+                      const visiblePGs = showMore ? allPGs.slice(0, 6) : allPGs.slice(0, 3);
+                      const canShowMore = allPGs.length > 3;
+                      return (
+                        <div style={{
+                          background: 'rgba(234,179,8,0.05)',
+                          border: '1px solid rgba(234,179,8,0.2)',
+                          borderRadius: 8,
+                          padding: '10px 11px',
+                          height: '100%',
+                          boxSizing: 'border-box',
+                        }}>
+                          <div style={{
+                            fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const,
+                            letterSpacing: '0.07em', marginBottom: 8,
+                            color: D.dim,
+                          }}>
+                            🏠 Best PG Matches
+                          </div>
+
+                          {allPGs.length === 0 ? (
+                            <div style={{ fontSize: 10, color: D.dim, padding: '8px 0', fontStyle: 'italic' }}>
+                              No PG matches for this lead.
+                            </div>
+                          ) : (
+                            <>
+                              <AnimatePresence initial={false}>
+                                <div style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+                                  gap: 8,
+                                }}>
+                                  {visiblePGs.map((pg: any, idx: number) => (
+                                    <motion.div
+                                      key={pg.id}
+                                      initial={{ opacity: 0, y: 6 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -4 }}
+                                      transition={{ duration: 0.18, delay: idx * 0.04 }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{ minWidth: 0 }}
+                                    >
+                                      <PGCard pg={pg} viewMode="grid" />
+                                    </motion.div>
+                                  ))}
+                                </div>
+                              </AnimatePresence>
+
+                              {canShowMore && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowMorePGsIds((prev) => {
+                                      const next = new Set(prev);
+                                      next.has(lead.id) ? next.delete(lead.id) : next.add(lead.id);
+                                      return next;
+                                    });
+                                  }}
+                                  aria-expanded={showMore}
+                                  style={{
+                                    marginTop: 10,
+                                    width: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 4,
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    color: 'var(--lc-acc)',
+                                    background: 'rgba(108,92,231,0.07)',
+                                    border: '1px solid rgba(108,92,231,0.22)',
+                                    borderRadius: 6,
+                                    padding: '5px 12px',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.15s ease',
+                                  }}
+                                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(108,92,231,0.13)'; }}
+                                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(108,92,231,0.07)'; }}
+                                >
+                                  {showMore ? (
+                                    <><ChevronUp size={11} strokeWidth={2.5} /> Show Less</>
+                                  ) : (
+                                    <><ChevronDown size={11} strokeWidth={2.5} /> Show {Math.min(allPGs.length, 6) - 3} More</>
+                                  )}
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+                <style>{`
+                  @media (max-width: 640px) {
+                    .geo-pg-grid { grid-template-columns: 1fr !important; }
+                  }
+                  @media (min-width: 641px) and (max-width: 900px) {
+                    .geo-pg-grid { grid-template-columns: minmax(0,5fr) minmax(0,7fr) !important; gap: 8px !important; }
+                  }
+                `}</style>
 
                 {/* Activity Log */}
                 <div style={{ marginTop: 10, padding: '10px', borderRadius: 8, border: `1px solid ${D.line}`, background: D.bg1 }}>
